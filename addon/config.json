@@ -1,3 +1,4 @@
 {
-	"OpenAI API Key": ""
+	"OpenAI API Key": "",
+	"MOCK_API_RESPONSE": false
 }
