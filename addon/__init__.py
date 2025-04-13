@@ -11,7 +11,7 @@ import aqt.gui_hooks
 from aqt.main import AnkiQt
 from aqt.utils import showInfo
 from aqt.operations import QueryOp
-from aqt.qt.qt6 import QDialog, QComboBox, QPushButton, QVBoxLayout
+from aqt.qt.qt6 import QDialog, QComboBox, QPushButton, QFormLayout, QLabel
 from anki.collection import Collection
 from openai import OpenAI
 import openai
@@ -41,6 +41,7 @@ class PromptForm(QDialog):
         self.theme = QComboBox()
         self.vocab_query = QComboBox()
         
+        
         for prompt in prompts:
             self.prompt.addItem(prompt["name"], userData=prompt["body"])
 
@@ -53,12 +54,14 @@ class PromptForm(QDialog):
 
         self.button = QPushButton("Run")
         self.button.clicked.connect(self.prepare_story)
+        
 
-        layout = QVBoxLayout()
+        layout = QFormLayout()
 
-        layout.addWidget(self.prompt)
-        layout.addWidget(self.theme)
-        layout.addWidget(self.vocab_query)
+
+        layout.addRow(QLabel("Prompt"), self.prompt)
+        layout.addRow(QLabel("Theme"), self.theme)
+        layout.addRow(QLabel("Collection Query"), self.vocab_query)
         layout.addWidget(self.button)
         self.setLayout(layout)
 
@@ -76,6 +79,8 @@ class PromptForm(QDialog):
         )
 
         op.with_progress().run_in_background()
+
+        self.close()
 
 
 
