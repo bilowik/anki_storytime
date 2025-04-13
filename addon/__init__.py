@@ -9,7 +9,6 @@ import aqt
 from aqt import mw
 import aqt.gui_hooks
 from aqt.main import AnkiQt
-from aqt.overview import Overview, OverviewContent
 from aqt.utils import showInfo
 from aqt.operations import QueryOp
 from anki.collection import Collection
@@ -24,11 +23,13 @@ DEFAULT_PROMPT_BASE = """Create a story in Japanese with the following vocabular
 MAX_VOCAB_WORDS = 100
     
 
-CONFIG: Dict = mw.addonManager.getConfig(__name__) or {}
-
 def main():
     aqt.gui_hooks.overview_will_render_bottom.append(add_ai_button)
     return 
+
+def get_config() -> Dict:
+    return mw.addonManager.getConfig(__name__) or {}
+
 
 def get_forgotten_vocab(mw: AnkiQt) -> List[str]:
     col: Union[Collection, None] = mw.col 
@@ -43,14 +44,15 @@ def prepare_story_on_success(story: str) -> None:
 
 
 def prepare_story() -> str:
+    config: Dict = get_config()
     vocab: List[str]= get_forgotten_vocab(mw)
     if len(vocab) > 0:
-        if CONFIG.get("MOCK_API_RESPONSE") is True:
+        if config.get("MOCK_API_RESPONSE") is True:
             # So we don't run up the bill while testing :) 
             return "ここに何かがありますよ"
-        api_key = CONFIG.get('OpenAI API Key', '')
+        api_key = config.get('OpenAI API Key', '')
         if api_key:
-            client = OpenAI(api_key=CONFIG.get('OpenAI API Key', ''))
+            client = OpenAI(api_key=config.get('OpenAI API Key', ''))
             prompt: str = DEFAULT_PROMPT_BASE + "\n".join(vocab)
             try:
                 return client.responses.create(input=prompt, model="gpt-4o").output_text
@@ -71,7 +73,7 @@ def add_ai_button(link_handler: Callable[[str], bool], links: List[List[str]]) -
         if url == AI_BUTTON_URI:
             op = QueryOp(
                     parent=mw,
-                    op=lambda col: prepare_story(),
+                    op=lambda _: prepare_story(),
                     success=prepare_story_on_success,
             )
 
