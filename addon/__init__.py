@@ -20,6 +20,8 @@ AI_BUTTON_URI = "anki_storytime__ai_button";
 MAX_VOCAB_WORDS = 100
 
 
+stories: Dict[str, List[str]] = {}
+
 
 class Prompt(TypedDict):
     name: str
@@ -52,7 +54,7 @@ class PromptForm(QDialog):
         self.prompt = QComboBox()
         self.theme = QComboBox()
         self.vocab_query = QComboBox()
-        
+
         
         for prompt in prompts:
             self.prompt.addItem(prompt["name"], userData=prompt["body"])
@@ -75,9 +77,17 @@ class PromptForm(QDialog):
         layout.addRow(QLabel("Theme"), self.theme)
         layout.addRow(QLabel("Collection Query"), self.vocab_query)
         layout.addWidget(self.button)
+
+        self.previous_stories: List[str] = stories.get(cast(Collection, mw.col).name(), [])
+
+        if self.previous_stories:
+            self.previous_stories_button = QPushButton("Previous Stories")
+            self.previous_stories_button.clicked.connect(self.show_previous_stories)
+            layout.addWidget(self.previous_stories_button)
         self.setLayout(layout)
 
-
+    def show_previous_stories(self):
+        showInfo(self.previous_stories[-1])
     
 
     def prepare_story(self):
@@ -87,7 +97,7 @@ class PromptForm(QDialog):
         op = QueryOp(
                 parent=mw,
                 op=lambda _: prepare_story(vocab_query, theme, prompt),
-                success=prepare_story_on_success,
+                success=prepare_story_on_success, 
         )
 
         op.with_progress().run_in_background()
@@ -124,6 +134,10 @@ def get_vocab(mw: AnkiQt, query: str) -> List[str]:
 
 
 def prepare_story_on_success(story: str) -> None:
+    name: str = cast(Collection, mw.col).name()
+    if name not in stories:
+        stories[name] = []
+    stories[name].append(story)
     showInfo(story, title="AI Storytime")
 
 
