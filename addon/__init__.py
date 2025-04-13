@@ -16,10 +16,6 @@ from openai import OpenAI
 import openai
 
 AI_BUTTON_URI = "anki_storytime__ai_button";
-
-DEFAULT_PROMPT_BASE = """Create a story in Japanese with the following vocabulary words that will be listed individually on separate lines starting after the first empty newline. The story can be about anything in particular, but should provide a reasonable amount of context, not every sentence has to have one of the vocabulary words in it, but you must utilize every single vocabulary word provided. The length of the story can be as long as needed to encompass all of the vocabulary words. Do not respond with any other text other than the story. Following are the vocabulary words:
-
-"""
 MAX_VOCAB_WORDS = 100
     
 
@@ -31,11 +27,11 @@ def get_config() -> Dict:
     return mw.addonManager.getConfig(__name__) or {}
 
 
-def get_forgotten_vocab(mw: AnkiQt) -> List[str]:
+def get_vocab(mw: AnkiQt, query: str) -> List[str]:
     col: Union[Collection, None] = mw.col 
     if col is None:
         return []
-    return list(map(lambda x: col.get_note(x).fields[1], col.find_notes("rated:1:1")))
+    return list(map(lambda x: col.get_note(x).fields[1], col.find_notes(query)))
 
 
 
@@ -45,17 +41,19 @@ def prepare_story_on_success(story: str) -> None:
 
 def prepare_story() -> str:
     config: Dict = get_config()
-    vocab: List[str]= get_forgotten_vocab(mw)
+    vocab: List[str]= get_vocab(mw, config.get("vocab_query_presents", [""])[0])
+    theme: str = config.get("theme_presets", [""])[0]
+    prompt: str = config.get("prompt_prests", [""])[0]
     if len(vocab) > 0:
         if config.get("MOCK_API_RESPONSE") is True:
             # So we don't run up the bill while testing :) 
             return "ここに何かがありますよ"
-        api_key = config.get('OpenAI API Key', '')
+        api_key = config.get("open_api_key", "")
         if api_key:
-            client = OpenAI(api_key=config.get('OpenAI API Key', ''))
-            prompt: str = DEFAULT_PROMPT_BASE + "\n".join(vocab)
+            client = OpenAI(api_key=config.get('open_api_key', ""))
+            formatted_prompt: str = prompt.format(vocab="\n".join(vocab), theme=theme)
             try:
-                return client.responses.create(input=prompt, model="gpt-4o").output_text
+                return client.responses.create(input=formatted_prompt, model="gpt-4o").output_text
             except openai.RateLimitError:
                 raise Exception("The account associated with the provided API key may have run out of credits")
             except openai.BadRequestError as e:
