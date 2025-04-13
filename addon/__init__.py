@@ -20,9 +20,6 @@ AI_BUTTON_URI = "anki_storytime__ai_button";
 MAX_VOCAB_WORDS = 100
 
 
-stories: Dict[str, List[str]] = {}
-
-
 class Prompt(TypedDict):
     name: str
     body: str
@@ -45,9 +42,11 @@ class Config(TypedDict):
     custom_vocab_query_presets: List[VocabQuery]
     custom_theme_presets: List[Theme]
     custom_prompt_presets: List[Prompt]
+    previous_stories: Dict[str, List[str]] 
+    max_stories_per_collection: int
 
 class PromptForm(QDialog):
-    def __init__(self, prompts: List[Prompt], vocab_queries: List[VocabQuery], themes: List[Theme], ):
+    def __init__(self, prompts: List[Prompt], vocab_queries: List[VocabQuery], themes: List[Theme], previous_stories: List[str] ):
         super(PromptForm, self).__init__()
         self.setWindowTitle("AI Prompt Configuration")
 
@@ -78,7 +77,7 @@ class PromptForm(QDialog):
         layout.addRow(QLabel("Collection Query"), self.vocab_query)
         layout.addWidget(self.button)
 
-        self.previous_stories: List[str] = stories.get(cast(Collection, mw.col).name(), [])
+        self.previous_stories: List[str] = previous_stories
 
         if self.previous_stories:
             self.previous_stories_button = QPushButton("Previous Stories")
@@ -134,10 +133,17 @@ def get_vocab(mw: AnkiQt, query: str) -> List[str]:
 
 
 def prepare_story_on_success(story: str) -> None:
-    name: str = cast(Collection, mw.col).name()
-    if name not in stories:
-        stories[name] = []
-    stories[name].append(story)
+    col_name: str = cast(Collection, mw.col).path
+    config: Config = get_config()
+    previous_stories: Dict[str, List[str]] = config["previous_stories"]
+
+    if col_name not in previous_stories:
+        previous_stories[col_name] = []
+    previous_stories[col_name].append(story)
+    if len(previous_stories[col_name]) > config["max_stories_per_collection"]:
+        # Pop the first story off, which is the oldest.
+        previous_stories[col_name].pop(0)
+    mw.addonManager.writeConfig(__name__, cast(Dict, config))
     showInfo(story, title="AI Storytime")
 
 
@@ -168,22 +174,25 @@ def prepare_story(vocab_query: str, theme: str, prompt: str) -> str:
         raise Exception("No notes found matching your query")
 
 
-def create_prompt_dialog(config: Config):
+def create_prompt_dialog():
+    # Refetch the config here to ensure it refreshes.
+    config: Config = get_config()
+    col_name: str = cast(Collection, mw.col).path
+    previous_stories = config["previous_stories"].get(col_name, [])
     vocab_queries: List[VocabQuery] = config["vocab_query_presets"]
     themes: List[Theme] = config["theme_presets"]
     prompts: List[Prompt] = config["prompt_presets"]
-    prompt_window = PromptForm(prompts, vocab_queries, themes)
+    prompt_window = PromptForm(prompts, vocab_queries, themes, previous_stories)
     setattr(mw, "anki_storytime__prompt_window", prompt_window)
     prompt_window.show()
 
 
 def add_ai_button(link_handler: Callable[[str], bool], links: List[List[str]]) -> Callable[[str], bool]:
-    config: Config = get_config()
     links.append(['A', AI_BUTTON_URI, "AI Button"])
     def ai_button_link_handler(url: str):
         handler = link_handler(url)
         if url == AI_BUTTON_URI:
-            create_prompt_dialog(config)
+            create_prompt_dialog()
 
         return handler
 

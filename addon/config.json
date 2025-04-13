@@ -51,5 +51,7 @@
 	],
 	"custom_vocab_query_presets": [],
 	"custom_theme_presets": [],
-	"custom_prompt_presets": []
+	"custom_prompt_presets": [],
+	"previous_stories": {},
+	"max_stories_per_collection": 10
 }
