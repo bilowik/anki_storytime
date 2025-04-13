@@ -1,4 +1,50 @@
 {
-	"OpenAI API Key": "",
-	"MOCK_API_RESPONSE": false
+	"openai_api_key": "",
+	"MOCK_API_RESPONSE": false,
+	"vocab_query_presets": [
+		{
+			"query": "rated:1:1",
+			"name": "Missed today"
+		},
+		{
+			"query": "rated:3:1",
+			"name": "Missed last 3 days"
+		}
+	],
+	"theme_presets": [
+		{
+			"name": "Superhero",
+			"body": "superhero"
+		},
+		{
+			"name": "Drama",
+			"body": "drama show"
+		},
+		{
+			"name": "News report",
+			"body": "news report"
+		},
+		{
+			"name": "Fantasy",
+			"body": "fantasy"
+		},
+		{
+			"name": "Random",
+			"body": "Get crazy, go buck-wild, totally random, but maybe cohesive enough to still be understand"
+		}
+
+	],
+	"prompt_presets": [
+		{
+			"name": "Default",
+			"body": "Create a story in Japanese with the following vocabulary terms that will be listed individually on separate lines starting after the first empty newline. The theme you are given for this story is '{theme}'. Not every sentence has to have one of the vocabulary terms in it, but you must utilize every single vocabulary term provided. The length of the story can be as long as needed to encompass all of the vocabulary terms. Do not respond with any other text other than the story. Following are the vocabulary terms: \n\n{vocab}"
+		},
+		{
+			"name": "Example Sentences",
+			"body": "I need example sentences in Japanese with the following vocabulary terms that will be listed individually on separate lines starting after the first empty newline. The theme you are given for these sentences is '{theme}'. You must utilize every single vocabulary term provided. It should be exactly one sentence per provided vocabulary term. Do not respond with any other text other than the sentences. The sentences should be exactly one per line, with an empty newline in between each. Following are the vocabulary terms: \n\n{vocab}"
+		}
+	],
+	"custom_vocab_query_presets": [],
+	"custom_theme_presets": [],
+	"custom_prompt_presets": []
 }
