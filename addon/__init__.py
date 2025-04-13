@@ -133,7 +133,7 @@ def prepare_story(vocab_query: str, theme: str, prompt: str) -> str:
     if len(vocab) > 0:
         if config.get("MOCK_API_RESPONSE") is True:
             # So we don't run up the bill while testing :) 
-            response: str = f"ここに何かがありますよ。テーマは「{theme}」です。尋ねは「{vocab_query}｀」です。下には、選んだ言葉があります：\n" + "\n".join(vocab)
+            response: str = f"ここに何かがありますよ。テーマは「{theme}」です。尋ねは「{vocab_query}」です。下には、選んだ言葉があります：\n" + "\n".join(vocab)
             if len(response) > 1000:
                 response = response[0:1000] + f"... ({len(response) - 1000} characters omitted"
             print(response)
