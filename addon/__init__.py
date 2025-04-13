@@ -47,7 +47,7 @@ def prepare_story() -> str:
     if len(vocab) > 0:
         if config.get("MOCK_API_RESPONSE") is True:
             # So we don't run up the bill while testing :) 
-            return "ここに何かがありますよ"
+            return f"ここに何かがありますよ。テーマは「{theme}」です。下には、選んだ言葉があります：\n" + "\n".join(vocab)
         api_key = config.get("open_api_key", "")
         if api_key:
             client = OpenAI(api_key=config.get('open_api_key', ""))
