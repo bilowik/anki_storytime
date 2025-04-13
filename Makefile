@@ -1,5 +1,6 @@
 BUILD_DIR=target
 
+TEMP_CONFIG_PATH=/tmp/anki_storytime__meta.json
 
 
 build:
@@ -9,11 +10,15 @@ build:
 
 
 local_deploy:
-	cp -r ${BUILD_DIR} ${ANKI_ADDON_PATH}
+	-mkdir ${ANKI_ADDON_PATH}
+	cp -r ${BUILD_DIR}/* ${ANKI_ADDON_PATH}
 
 local_deploy_clean: clean build local_deploy;
 
 
 clean:
-	-rm -rf ${ANKI_ADDON_PATH}
 	-rm -rf ${BUILD_DIR}
+
+
+clean_plugin_in_anki:
+	-rm -rf ${ANKI_ADDON_PATH}
