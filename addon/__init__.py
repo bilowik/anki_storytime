@@ -11,6 +11,7 @@ import aqt.gui_hooks
 from aqt.main import AnkiQt
 from aqt.overview import Overview, OverviewContent
 from aqt.utils import showInfo
+from aqt.operations import QueryOp
 from anki.collection import Collection
 from openai import OpenAI
 import openai
@@ -37,40 +38,49 @@ def get_forgotten_vocab(mw: AnkiQt) -> List[str]:
 
 
 
+def prepare_story_on_success(story: str) -> None:
+    showInfo("Story from today's mistakes\n\n" + story, title="AI Storytime")
+
+
+def prepare_story() -> str:
+    vocab: List[str]= get_forgotten_vocab(mw)
+    if len(vocab) > 0:
+        if CONFIG.get("MOCK_API_RESPONSE") is True:
+            # So we don't run up the bill while testing :) 
+            return "ここに何かがありますよ"
+        api_key = CONFIG.get('OpenAI API Key', '')
+        if api_key:
+            client = OpenAI(api_key=CONFIG.get('OpenAI API Key', ''))
+            prompt: str = DEFAULT_PROMPT_BASE + "\n".join(vocab)
+            try:
+                return client.responses.create(input=prompt, model="gpt-4o").output_text
+            except openai.RateLimitError:
+                raise Exception("The account associated with the provided API key may have run out of credits")
+            except openai.BadRequestError as e:
+                raise Exception(f"Failed to retrieve response from OpenAI: {e}")
+        else:
+            raise Exception("No API Key set for OpenAI, please add this key in this addon's config")
+    else:
+        raise Exception("No notes found matching your query")
 
 
 def add_ai_button(link_handler: Callable[[str], bool], links: List[List[str]]) -> Callable[[str], bool]:
-    d = mw
-
     links.append(['A', AI_BUTTON_URI, "AI Button"])
     def ai_button_link_handler(url: str):
         handler = link_handler(url)
         if url == AI_BUTTON_URI:
-            print(AI_BUTTON_URI + '_button_test')
-            vocab: List[str]= get_forgotten_vocab(mw)
-            if len(vocab) > 0:
-                api_key = CONFIG.get('OpenAI API Key', '')
-                if api_key:
-                    client = OpenAI(api_key=CONFIG.get('OpenAI API Key', ''))
-                    prompt: str = DEFAULT_PROMPT_BASE + "\n".join(vocab)
-                    try:
-                        response = client.responses.create(input=prompt, model="gpt-4o")
-                        showInfo("Story from today's mistakes\n\n" + response.output_text, title="AI Storytime")
-                    except openai.RateLimitError:
-                        showInfo("The account associated with the provided API key may have run out of credits")
-                    except openai.BadRequestError as e:
-                        showInfo(f"Failed to retrieve response from OpenAI: {e}")
-                else:
-                    showInfo("No API Key set for OpenAI, please add this key in this addon's config")
+            op = QueryOp(
+                    parent=mw,
+                    op=lambda col: prepare_story(),
+                    success=prepare_story_on_success,
+            )
+
+            op.with_progress().run_in_background()
 
 
         return handler
 
     return ai_button_link_handler
-
-
-
-
 
 
 main()
