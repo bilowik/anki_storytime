@@ -3,7 +3,6 @@ import os
 
 # When bundlings the packages they will be placed here.
 sys.path.insert(1, os.path.join(os.path.dirname((os.path.abspath(__file__))), 'libs'))
-print(sys.path)
 
 from typing import Callable, List, Union, Dict
 import aqt
@@ -11,6 +10,7 @@ from aqt import mw
 import aqt.gui_hooks
 from aqt.main import AnkiQt
 from aqt.overview import Overview, OverviewContent
+from aqt.utils import showInfo
 from anki.collection import Collection
 from openai import OpenAI
 import openai
@@ -24,7 +24,6 @@ MAX_VOCAB_WORDS = 100
     
 
 CONFIG: Dict = mw.addonManager.getConfig(__name__) or {}
-print(CONFIG)
 
 def main():
     aqt.gui_hooks.overview_will_render_bottom.append(add_ai_button)
@@ -47,7 +46,6 @@ def add_ai_button(link_handler: Callable[[str], bool], links: List[List[str]]) -
     def ai_button_link_handler(url: str):
         handler = link_handler(url)
         if url == AI_BUTTON_URI:
-            # TODO: Do something here?
             print(AI_BUTTON_URI + '_button_test')
             vocab: List[str]= get_forgotten_vocab(mw)
             if len(vocab) > 0:
@@ -57,13 +55,13 @@ def add_ai_button(link_handler: Callable[[str], bool], links: List[List[str]]) -
                     prompt: str = DEFAULT_PROMPT_BASE + "\n".join(vocab)
                     try:
                         response = client.responses.create(input=prompt, model="gpt-4o")
-                        print(response.output_text)
+                        showInfo("Story from today's mistakes\n\n" + response.output_text, title="AI Storytime")
                     except openai.RateLimitError:
-                        print("Out of credits")
+                        showInfo("The account associated with the provided API key may have run out of credits")
                     except openai.BadRequestError as e:
-                        print(f"Bad request: {e}")
+                        showInfo(f"Failed to retrieve response from OpenAI: {e}")
                 else:
-                    print("No API Key provided")
+                    showInfo("No API Key set for OpenAI, please add this key in this addon's config")
 
 
         return handler
