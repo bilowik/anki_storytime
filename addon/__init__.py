@@ -36,18 +36,23 @@ def get_vocab(mw: AnkiQt, query: str) -> List[str]:
 
 
 def prepare_story_on_success(story: str) -> None:
-    showInfo("Story from today's mistakes\n\n" + story, title="AI Storytime")
+    showInfo(story, title="AI Storytime")
 
 
 def prepare_story() -> str:
     config: Dict = get_config()
-    vocab: List[str]= get_vocab(mw, config.get("vocab_query_presents", [""])[0])
-    theme: str = config.get("theme_presets", [""])[0]
-    prompt: str = config.get("prompt_prests", [""])[0]
+    vocab_query: str = config["vocab_query_presets"][1]["query"]
+    vocab: List[str]= get_vocab(mw, vocab_query)
+    theme: str = config["theme_presets"][0]["body"]
+    prompt: str = config["prompt_presets"][0]["body"]
     if len(vocab) > 0:
         if config.get("MOCK_API_RESPONSE") is True:
             # So we don't run up the bill while testing :) 
-            return f"ここに何かがありますよ。テーマは「{theme}」です。下には、選んだ言葉があります：\n" + "\n".join(vocab)
+            response: str = f"ここに何かがありますよ。テーマは「{theme}」です。尋ねは「{vocab_query}｀」です。下には、選んだ言葉があります：\n" + "\n".join(vocab)
+            if len(response) > 1000:
+                response = response[0:1000] + f"... ({len(response) - 1000} characters omitted"
+            print(response)
+            return response
         api_key = config.get("open_api_key", "")
         if api_key:
             client = OpenAI(api_key=config.get('open_api_key', ""))
