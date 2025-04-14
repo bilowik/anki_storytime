@@ -13,6 +13,7 @@ from aqt.utils import showInfo
 from aqt.operations import QueryOp
 from aqt.qt.qt6 import QDialog, QComboBox, QPushButton, QFormLayout, QLabel
 from anki.collection import Collection
+from anki.decks import DeckId, DeckDict
 from openai import OpenAI
 import openai
 
@@ -90,7 +91,12 @@ class PromptForm(QDialog):
     
 
     def prepare_story(self):
-        vocab_query: str = self.vocab_query.currentData()
+        # Both the following casts are guaranteed safe since the button won't show unless
+        # we both have a collection and a deck is selected.
+        col: Collection = cast(Collection, mw.col) 
+        selected_deck_id: DeckId = col.decks.selected()
+        selected_deck_name = cast(DeckDict, col.decks.get(selected_deck_id))["name"]
+        vocab_query: str = f'deck:"{selected_deck_name}" ' + self.vocab_query.currentData()
         theme: str = self.theme.currentData()
         prompt: str = self.prompt.currentData()
         op = QueryOp(
