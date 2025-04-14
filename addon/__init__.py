@@ -4,14 +4,14 @@ import os
 # When bundlings the packages they will be placed here.
 sys.path.insert(1, os.path.join(os.path.dirname((os.path.abspath(__file__))), 'libs'))
 
-from typing import Callable, List, Union, Dict, TypedDict, cast, Set
+from typing import Callable, List, Union, Dict, TypedDict, cast, Callable, Self, Set
 import aqt
 from aqt import mw
 import aqt.gui_hooks
 from aqt.main import AnkiQt
 from aqt.utils import showInfo
 from aqt.operations import QueryOp
-from aqt.qt.qt6 import QDialog, QComboBox, QPushButton, QFormLayout, QLabel
+from aqt.qt.qt6 import QDialog, QComboBox, QPushButton, QFormLayout, QLabel, QLineEdit, QPlainTextEdit, QHBoxLayout
 from anki.collection import Collection
 from anki.decks import DeckId, DeckDict
 from openai import OpenAI
@@ -52,21 +52,40 @@ class PromptForm(QDialog):
         super(PromptForm, self).__init__()
         self.setWindowTitle("AI Prompt Configuration")
 
-        self.prompt = QComboBox()
-        self.theme = QComboBox()
-        self.vocab_query = QComboBox()
+        self.prompt_select = QComboBox()
+        self.theme_select = QComboBox()
+        self.vocab_query_select = QComboBox()
+        
+        self.prompt = QPlainTextEdit()
+        self.theme = QLineEdit()
+        self.vocab_query = QLineEdit()
 
+        self.prompt_select.currentIndexChanged.connect(self.select_on_change_factory(self.prompt_select, self.prompt))
+        self.theme_select.currentIndexChanged.connect(self.select_on_change_factory(self.theme_select, self.theme))
+        self.vocab_query_select.currentIndexChanged.connect(self.select_on_change_factory(self.vocab_query_select, self.vocab_query))
+
+        prompt_row: QHBoxLayout = QHBoxLayout()
+        prompt_row.addWidget(self.prompt_select)
+        prompt_row.addWidget(self.prompt)
+        
+        theme_row: QHBoxLayout = QHBoxLayout()
+        theme_row.addWidget(self.theme_select)
+        theme_row.addWidget(self.theme)
+
+        vocab_query_row: QHBoxLayout = QHBoxLayout()
+        vocab_query_row.addWidget(self.vocab_query_select)
+        vocab_query_row.addWidget(self.vocab_query)
         
         for prompt in prompts:
-            self.prompt.addItem(prompt["name"], userData=prompt["body"])
+            self.prompt_select.addItem(prompt["name"], userData=prompt["body"])
 
         for vocab_query in vocab_queries:
-            self.vocab_query.addItem(vocab_query["name"], userData=vocab_query["query"])
+            self.vocab_query_select.addItem(vocab_query["name"], userData=vocab_query["query"])
         
         for theme in themes:
-            self.theme.addItem(theme["name"], userData=theme["body"])
+            self.theme_select.addItem(theme["name"], userData=theme["body"])
 
-
+        
         self.button = QPushButton("Run")
         self.button.clicked.connect(self.prepare_story)
         
@@ -74,9 +93,9 @@ class PromptForm(QDialog):
         layout = QFormLayout()
 
 
-        layout.addRow(QLabel("Prompt"), self.prompt)
-        layout.addRow(QLabel("Theme"), self.theme)
-        layout.addRow(QLabel("Collection Query"), self.vocab_query)
+        layout.addRow(QLabel("Theme"), theme_row)
+        layout.addRow(QLabel("Collection Query"), vocab_query_row)
+        layout.addRow(QLabel("Prompt"), prompt_row)
         layout.addWidget(self.button)
 
         self.previous_stories: List[str] = previous_stories
@@ -86,6 +105,19 @@ class PromptForm(QDialog):
             self.previous_stories_button.clicked.connect(self.show_previous_stories)
             layout.addWidget(self.previous_stories_button)
         self.setLayout(layout)
+    
+    
+    def select_on_change_factory(self, select: QComboBox, text: Union[QLineEdit, QPlainTextEdit]) -> Callable[[int], None]:
+        text_setter: Callable[[str]]
+        if isinstance(text, QLineEdit):
+            text_setter = lambda s: cast(QLineEdit, text).setText(s)
+        else:
+            text_setter = lambda s: cast(QPlainTextEdit, text).setPlainText(s)
+
+        def select_on_change(idx: int):
+            text_setter(select.itemData(idx))
+
+        return select_on_change
 
     def show_previous_stories(self):
         showInfo(self.previous_stories[-1])
@@ -97,9 +129,9 @@ class PromptForm(QDialog):
         col: Collection = cast(Collection, mw.col) 
         selected_deck_id: DeckId = col.decks.selected()
         selected_deck_name = cast(DeckDict, col.decks.get(selected_deck_id))["name"]
-        vocab_query: str = f'deck:"{selected_deck_name}" ' + self.vocab_query.currentData()
-        theme: str = self.theme.currentData()
-        prompt: str = self.prompt.currentData()
+        vocab_query: str = f'deck:"{selected_deck_name}" ' + self.vocab_query_select.currentData()
+        theme: str = self.theme.text()
+        prompt: str = self.prompt.toPlainText()
         op = QueryOp(
                 parent=mw,
                 op=lambda _: prepare_story(vocab_query, theme, prompt),
