@@ -47,6 +47,7 @@ class Config(TypedDict):
     max_stories_per_collection: int
 
 class PromptForm(QDialog):
+    # TODO: Add field for selected deck or all decks.
     def __init__(self, prompts: List[Prompt], vocab_queries: List[VocabQuery], themes: List[Theme], previous_stories: List[str] ):
         super(PromptForm, self).__init__()
         self.setWindowTitle("AI Prompt Configuration")
@@ -102,7 +103,7 @@ class PromptForm(QDialog):
         op = QueryOp(
                 parent=mw,
                 op=lambda _: prepare_story(vocab_query, theme, prompt),
-                success=prepare_story_on_success, 
+                success=lambda response: prepare_story_on_success(response, deck_name=selected_deck_name), 
         )
 
         op.with_progress().run_in_background()
@@ -138,17 +139,18 @@ def get_vocab(mw: AnkiQt, query: str) -> List[str]:
 
 
 
-def prepare_story_on_success(story: str) -> None:
+def prepare_story_on_success(story: str, deck_name: Union[str, None]=None) -> None:
     col_name: str = cast(Collection, mw.col).path
+    name: str = deck_name or col_name # If no deck name is set, we pulled from all decks so use col_name.
     config: Config = get_config()
     previous_stories: Dict[str, List[str]] = config["previous_stories"]
 
-    if col_name not in previous_stories:
-        previous_stories[col_name] = []
-    previous_stories[col_name].append(story)
-    if len(previous_stories[col_name]) > config["max_stories_per_collection"]:
+    if name not in previous_stories:
+        previous_stories[name] = []
+    previous_stories[name].append(story)
+    if len(previous_stories[name]) > config["max_stories_per_collection"]:
         # Pop the first story off, which is the oldest.
-        previous_stories[col_name].pop(0)
+        previous_stories[name].pop(0)
     mw.addonManager.writeConfig(__name__, cast(Dict, config))
     showInfo(story, title="AI Storytime")
 
