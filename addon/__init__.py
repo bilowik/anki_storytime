@@ -179,9 +179,9 @@ def create_prompt_dialog():
     config: Config = get_config()
     col_name: str = cast(Collection, mw.col).path
     previous_stories = config["previous_stories"].get(col_name, [])
-    vocab_queries: List[VocabQuery] = config["vocab_query_presets"]
-    themes: List[Theme] = config["theme_presets"]
-    prompts: List[Prompt] = config["prompt_presets"]
+    vocab_queries: List[VocabQuery] = [*config["vocab_query_presets"], *config["custom_vocab_query_presets"]]
+    themes: List[Theme] = [*config["theme_presets"], *config["custom_theme_presets"]]
+    prompts: List[Prompt] = [*config["prompt_presets"], *config["custom_prompt_presets"]]
     prompt_window = PromptForm(prompts, vocab_queries, themes, previous_stories)
     setattr(mw, "anki_storytime__prompt_window", prompt_window)
     prompt_window.show()
