@@ -22,3 +22,9 @@ clean:
 
 clean_plugin_in_anki:
 	-rm -rf ${ANKI_ADDON_PATH}
+
+
+
+
+build-zip: clean build:
+	cd ${BUILD_DIR}; zip -r ../anki_storytime.zip .	
