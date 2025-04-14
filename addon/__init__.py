@@ -4,7 +4,7 @@ import os
 # When bundlings the packages they will be placed here.
 sys.path.insert(1, os.path.join(os.path.dirname((os.path.abspath(__file__))), 'libs'))
 
-from typing import Callable, List, Union, Dict, TypedDict, cast, Callable, Self, Set
+from typing import Callable, List, Union, Dict, TypedDict, cast, Callable, Set, Sequence 
 import aqt
 from aqt import mw
 import aqt.gui_hooks
@@ -14,11 +14,48 @@ from aqt.operations import QueryOp
 from aqt.qt.qt6 import QDialog, QComboBox, QPushButton, QFormLayout, QLabel, QLineEdit, QPlainTextEdit, QHBoxLayout
 from anki.collection import Collection
 from anki.decks import DeckId, DeckDict
+from anki.notes import NoteId, Note
+from anki.models import NotetypeDict
 from openai import OpenAI
 import openai
 
 AI_BUTTON_URI = "anki_storytime__ai_button";
 MAX_VOCAB_WORDS = 100
+
+
+class NoteTypeForm(QDialog):
+    def __init__(self, new_notes: Dict[str, Note]):
+        super().__init__()
+        layout: QFormLayout = QFormLayout()
+        layout.setRowWrapPolicy(QFormLayout.RowWrapPolicy.WrapLongRows)
+        header_label: QLabel = QLabel("The following are note types that have yet to have the correct field specified for use in this addon. Please use the dropdowns to select the field with your Japanese vocab.")
+        header_label.setWordWrap(True)
+        layout.addRow(header_label)
+        self.note_selects: Dict[str, QComboBox] = {}
+        new_note: Note
+        for (name, new_note) in new_notes.items():
+            select: QComboBox = QComboBox()
+            select.addItems([value[0:32] for value in new_note.fields])
+            self.note_selects[name] = select
+            layout.addRow(QLabel(name), select)
+
+        self.finished_button: QPushButton = QPushButton("Confirm")
+        self.finished_button.clicked.connect(self.on_confirm)
+        layout.addRow(self.finished_button)
+
+
+        self.setLayout(layout) 
+
+
+    def on_confirm(self):
+        config: Config = get_config()
+        note_type_field = config["note_type_field"]
+
+        for (name, select) in self.note_selects.items():
+            note_type_field[name] = select.currentIndex()
+        mw.addonManager.writeConfig(__name__, cast(Dict, config))
+        self.close()
+        
 
 
 class Prompt(TypedDict):
@@ -45,6 +82,10 @@ class Config(TypedDict):
     custom_prompt_presets: List[Prompt]
     previous_stories: Dict[str, List[str]] 
     max_stories_per_collection: int
+
+    # This is a mapping of note types to a given field index
+    # in order to determine what field to pull the vocab from.
+    note_type_field: Dict[str, int] 
 
 class PromptForm(QDialog):
     # TODO: Add field for selected deck or all decks.
@@ -126,15 +167,53 @@ class PromptForm(QDialog):
     def prepare_story(self):
         # Both the following casts are guaranteed safe since the button won't show unless
         # we both have a collection and a deck is selected.
+        config: Config = get_config()
         col: Collection = cast(Collection, mw.col) 
+        known_notes: Dict[str, int] = config['note_type_field']
         selected_deck_id: DeckId = col.decks.selected()
-        selected_deck_name = cast(DeckDict, col.decks.get(selected_deck_id))["name"]
+        selected_deck = cast(DeckDict, col.decks.get(selected_deck_id))
+        selected_deck_name = selected_deck["name"]
+        
         vocab_query: str = f'deck:"{selected_deck_name}" ' + self.vocab_query_select.currentData()
+        notes: List[Note] = list(map(lambda note_id: col.get_note(note_id), get_notes(mw, vocab_query)))
+        
+        notes_without_known_index: Dict[str, Note] = {}
+        
+        note: Note
+        for note in notes:
+            if note.note_type() is None:
+                continue
+            note_type: Union[NotetypeDict, None] = note.note_type()
+            note_type_name = (note_type or {}).get("name")
+
+            if note_type_name is not None:
+                if note_type_name not in known_notes and note_type_name not in notes_without_known_index:
+                    # we don't know which field has the value we want to use.
+                    notes_without_known_index[note_type_name] = note
+
+        
+        if len(notes_without_known_index) > 0:
+            note_type_form: NoteTypeForm = NoteTypeForm(notes_without_known_index)
+            setattr(mw, "anki_storytime__note_type_window", note_type_form)
+            note_type_form.show()
+            return None
+
+        vocab: List[str] = []
+        note: Note 
+        for note in notes:
+            note_type: Union[NotetypeDict, None] = note.note_type()
+            if note_type is None:
+                continue
+            note_type_name: str = note_type["name"]
+            idx: int = known_notes[note_type_name] 
+            vocab.append(note.fields[idx])
+            
+
         theme: str = self.theme.text()
         prompt: str = self.prompt.toPlainText()
         op = QueryOp(
                 parent=mw,
-                op=lambda _: prepare_story(vocab_query, theme, prompt),
+                op=lambda _: prepare_story(vocab, theme, prompt),
                 success=lambda response: prepare_story_on_success(response, deck_name=selected_deck_name), 
         )
 
@@ -163,15 +242,19 @@ def get_config() -> Config:
     return cast(Config, config)
 
 
-def get_vocab(mw: AnkiQt, query: str) -> List[str]:
+def get_notes(mw: AnkiQt, query: str) -> Sequence[NoteId]:
     col: Union[Collection, None] = mw.col 
     if col is None:
         return []
-    return list(map(lambda x: col.get_note(x).fields[1], col.find_notes(query)))
+    # return list(map(lambda x: col.get_note(x).fields[1], col.find_notes(query)))
+    return col.find_notes(query)
 
 
 
-def prepare_story_on_success(story: str, deck_name: Union[str, None]=None) -> None:
+def prepare_story_on_success(story: Union[str, None], deck_name: Union[str, None]=None) -> None:
+    if story is None:
+        # Likely note types without a known index were found, not an error. Just return.
+        return
     col_name: str = cast(Collection, mw.col).path
     name: str = deck_name or col_name # If no deck name is set, we pulled from all decks so use col_name.
     config: Config = get_config()
@@ -187,13 +270,12 @@ def prepare_story_on_success(story: str, deck_name: Union[str, None]=None) -> No
     showInfo(story, title="AI Storytime")
 
 
-def prepare_story(vocab_query: str, theme: str, prompt: str) -> str:
+def prepare_story(vocab: List[str], theme: str, prompt: str) -> str:
     config: Config = get_config()
-    vocab: List[str]= get_vocab(mw, vocab_query)
     if len(vocab) > 0:
         if config.get("MOCK_API_RESPONSE") is True:
             # So we don't run up the bill while testing :) 
-            response: str = f"ここに何かがありますよ。テーマは「{theme}」です。尋ねは「{vocab_query}」です。下には、選んだ言葉があります：\n" + "\n".join(vocab)
+            response: str = f"ここに何かがありますよ。テーマは「{theme}」です。下には、選んだ言葉があります：\n" + "\n".join(vocab)
             if len(response) > 1000:
                 response = response[0:1000] + f"... ({len(response) - 1000} characters omitted"
             print(response)
