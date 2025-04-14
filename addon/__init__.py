@@ -188,7 +188,7 @@ def create_prompt_dialog():
 
 
 def add_ai_button(link_handler: Callable[[str], bool], links: List[List[str]]) -> Callable[[str], bool]:
-    links.append(['A', AI_BUTTON_URI, "AI Button"])
+    links.append(['A', AI_BUTTON_URI, "Storytime"])
     def ai_button_link_handler(url: str):
         handler = link_handler(url)
         if url == AI_BUTTON_URI:
