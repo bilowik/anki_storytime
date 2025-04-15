@@ -235,8 +235,9 @@ def get_config() -> Config:
     # Technically, the below will only ever occur due to a programming error since if the user
     # tries to remove a field from the json config, it gets repopulated with the default value.
     if missing_fields: 
+        missing_fields_str: str = "\n" + "\n".join(missing_fields)
 
-        showInfo(f"Anki Storytime addon is missing required configuration fields, this is likely a programming error. It may not function properly. Please try populating the provided fields or resetting to default values. Missing fields: {"\n".join(missing_fields)}")
+        showInfo(f"Anki Storytime addon is missing required configuration fields, this is likely a programming error. It may not function properly. Please try populating the provided fields or resetting to default values. Missing fields: {missing_fields_str}")
         raise Exception("Invalid configuration for Anki Storytime")
     # Can safely cast here since we know it has all required fields.
     return cast(Config, config)
