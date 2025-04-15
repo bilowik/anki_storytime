@@ -5,6 +5,8 @@ import os
 sys.path.insert(1, os.path.join(os.path.dirname((os.path.abspath(__file__))), 'libs'))
 
 from typing import Callable, List, Union, Dict, TypedDict, cast, Callable, Set, Sequence 
+import urllib.request
+import json
 import aqt
 from aqt import mw
 import aqt.gui_hooks
@@ -16,11 +18,11 @@ from anki.collection import Collection
 from anki.decks import DeckId, DeckDict
 from anki.notes import NoteId, Note
 from anki.models import NotetypeDict
-from openai import OpenAI
-import openai
 
 AI_BUTTON_URI = "anki_storytime__ai_button";
 MAX_VOCAB_WORDS = 100
+
+OPENAI_RESPONSE_URL = "https://api.openai.com/v1/responses"
 
 
 class NoteTypeForm(QDialog):
@@ -283,18 +285,28 @@ def prepare_story(vocab: List[str], theme: str, prompt: str) -> str:
             return response
         api_key = config.get("openai_api_key", "")
         if api_key:
-            client = OpenAI(api_key=api_key)
-            formatted_prompt: str = prompt.format(vocab="\n".join(vocab), theme=theme)
-            try:
-                return client.responses.create(input=formatted_prompt, model="gpt-4o").output_text
-            except openai.RateLimitError:
-                raise Exception("The account associated with the provided API key may have run out of credits")
-            except openai.BadRequestError as e:
-                raise Exception(f"Failed to retrieve response from OpenAI: {e}")
+            filled_prompt: str = prompt.format(vocab=vocab, theme=theme)  
+            return get_openai_response(filled_prompt, config['openai_model'], api_key) 
+
         else:
             raise Exception("No API Key set for OpenAI, please add this key in this addon's config")
     else:
         raise Exception("No notes found matching your query")
+
+
+def get_openai_response(prompt: str, model: str, token: str):
+    headers: Dict = {"Content-Type": "application/json", "Authorization": f"Bearer {token}"}
+    request_body: bytes = json.dumps(dict(model=model, input=prompt)).encode('utf-8')
+    req: urllib.request.Request = urllib.request.Request(OPENAI_RESPONSE_URL, headers=headers, method="POST", data=request_body)
+
+    with urllib.request.urlopen(req) as response:
+        body_bytes = response.read()
+        body_str: str = body_bytes.decode('utf-8')
+        body_json = json.loads(body_str)
+        if 'output' not in body_json:
+            raise Exception(f"Bad response from OpenAI model: {body_json}")
+        output: str = body_json["output"][0]["content"][0]["text"]
+        return output
 
 
 def create_prompt_dialog():

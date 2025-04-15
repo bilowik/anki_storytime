@@ -5,9 +5,7 @@ ZIP_FILE=anki_storytime.zip
 
 build: 
 	-mkdir ${BUILD_DIR}
-	-mkdir ${BULID_DIR}/libs
 	cp -r addon/* ${BUILD_DIR}
-	python3 -m pip install -r requirements.txt --target ${BUILD_DIR}/libs
 	find ${BUILD_DIR} -name '__pycache__' -type d -prune -exec rm -r "{}" \;
 	find ${BUILD_DIR} -name '*.pyc' -delete
 
