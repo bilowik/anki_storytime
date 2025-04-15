@@ -306,8 +306,13 @@ def get_openai_response(prompt: str, model: str, token: str):
 def create_prompt_dialog():
     # Refetch the config here to ensure it refreshes.
     config: Config = get_config()
-    col_name: str = cast(Collection, mw.col).path
-    previous_stories = config["previous_stories"].get(col_name, [])
+    col: Collection = cast(Collection, mw.col)
+    col_name: str = col.path
+    selected_deck_id: DeckId = col.decks.selected()
+    selected_deck = cast(DeckDict, col.decks.get(selected_deck_id))
+    selected_deck_name = selected_deck["name"]
+    name: str = selected_deck_name or col_name
+    previous_stories = config["previous_stories"].get(name, [])
     vocab_queries: List[VocabQuery] = [*config["vocab_query_presets"], *config["custom_vocab_query_presets"]]
     themes: List[Theme] = [*config["theme_presets"], *config["custom_theme_presets"]]
     prompts: List[Prompt] = [*config["prompt_presets"], *config["custom_prompt_presets"]]
