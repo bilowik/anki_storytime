@@ -1,4 +1,4 @@
-from typing import Callable, List, Union, Dict, TypedDict, cast, Callable, Set, Sequence 
+from typing import Callable, List, Union, Dict, TypedDict, cast, Callable, Set, Sequence
 import urllib.request
 import json
 import aqt
@@ -53,29 +53,80 @@ class NoteTypeForm(QDialog):
         self.close()
         
 
-
-class Prompt(TypedDict):
+class Preset(TypedDict):
     name: str
-    body: str
+    value: str
 
-class Theme(TypedDict):
-    name: str
-    body: str
 
-class VocabQuery(TypedDict):
-    name: str
-    query: str
+class PresetFieldRow:
+    def __init__(self, presets: List[Preset], text_area: bool=False):
+        self.value_field_dirty: bool = False
+        self.presets_modified: bool = False
+        self.presets = presets
+        self.text_area = text_area
+
+        self.row = QHBoxLayout()
+
+        self.save_button = QPushButton("Save")
+        self.reset_button = QPushButton("Reset")
+        
+        self.preset_select = QComboBox()
+        self.preset_select.currentIndexChanged.connect(self.select_on_change)
+        self.value_field: Union[QPlainTextEdit, QLineEdit];
+
+        self.get_value: Callable[[], str]; 
+        
+        if text_area:
+            self.get_value = lambda: cast(QPlainTextEdit, self.value_field).toPlainText()
+            self.value_field = QPlainTextEdit()
+        else:
+            self.get_value = lambda: cast(QLineEdit, self.value_field).text()
+            self.value_field = QLineEdit()
+        
+        self.row.addWidget(self.preset_select)
+        self.row.addWidget(self.value_field)
+        self.row.addWidget(self.save_button)
+        self.row.addWidget(self.reset_button)
+        self.save_button.hide()
+        self.reset_button.hide()
+
+        self.value_field.textChanged.connect(lambda : self.value_field_on_change())
+
+        self.set_value_field: Callable = QPlainTextEdit.setPlainText if text_area else QLineEdit.setText
+
+        for preset in presets:
+            self.preset_select.addItem(preset["name"], userData=preset["value"])
+
+    
+    def select_on_change(self, idx: int) -> None:
+        new_value: str = self.preset_select.itemData(idx)
+        self.set_value_field(self.value_field, new_value)
+
+    def value_field_on_change(self) -> None:
+        new_text: str = self.get_value()
+        if new_text == self.preset_select.currentData() and self.value_field_dirty:
+            # Unchanged preset has been set.
+            self.save_button.hide()
+            self.reset_button.hide()
+            self.value_field_dirty = False 
+        elif new_text != self.preset_select.currentData() and not self.value_field_dirty:
+            # We have a change that resulted in data not matching the preset and we aren't
+            # already labeled dirty.
+            self.value_field_dirty = True
+            self.save_button.show()
+            self.reset_button.show()
+        
 
 class Config(TypedDict):
     openai_api_key: str
     openai_model: str
     MOCK_API_RESPONSE: str
-    vocab_query_presets: List[VocabQuery]
-    theme_presets: List[Theme]
-    prompt_presets: List[Prompt]
-    custom_vocab_query_presets: List[VocabQuery]
-    custom_theme_presets: List[Theme]
-    custom_prompt_presets: List[Prompt]
+    vocab_query_presets: List[Preset]
+    theme_presets: List[Preset]
+    prompt_presets: List[Preset]
+    custom_vocab_query_presets: List[Preset]
+    custom_theme_presets: List[Preset]
+    custom_prompt_presets: List[Preset]
     previous_stories: Dict[str, List[str]] 
     max_stories_per_collection: int
 
@@ -83,45 +134,23 @@ class Config(TypedDict):
     # in order to determine what field to pull the vocab from.
     note_type_field: Dict[str, int] 
 
+class PresetRows(TypedDict):
+    prompt: PresetFieldRow
+    vocab_query: PresetFieldRow
+    theme: PresetFieldRow
+
+
 class PromptForm(QDialog):
     # TODO: Add field for selected deck or all decks.
-    def __init__(self, prompts: List[Prompt], vocab_queries: List[VocabQuery], themes: List[Theme], previous_stories: List[str] ):
+    def __init__(self, prompts: List[Preset], vocab_queries: List[Preset], themes: List[Preset], previous_stories: List[str] ):
         super(PromptForm, self).__init__()
         self.setWindowTitle("AI Prompt Configuration")
-
-        self.prompt_select = QComboBox()
-        self.theme_select = QComboBox()
-        self.vocab_query_select = QComboBox()
         
-        self.prompt = QPlainTextEdit()
-        self.theme = QLineEdit()
-        self.vocab_query = QLineEdit()
-
-        self.prompt_select.currentIndexChanged.connect(self.select_on_change_factory(self.prompt_select, self.prompt))
-        self.theme_select.currentIndexChanged.connect(self.select_on_change_factory(self.theme_select, self.theme))
-        self.vocab_query_select.currentIndexChanged.connect(self.select_on_change_factory(self.vocab_query_select, self.vocab_query))
-
-        prompt_row: QHBoxLayout = QHBoxLayout()
-        prompt_row.addWidget(self.prompt_select)
-        prompt_row.addWidget(self.prompt)
-        
-        theme_row: QHBoxLayout = QHBoxLayout()
-        theme_row.addWidget(self.theme_select)
-        theme_row.addWidget(self.theme)
-
-        vocab_query_row: QHBoxLayout = QHBoxLayout()
-        vocab_query_row.addWidget(self.vocab_query_select)
-        vocab_query_row.addWidget(self.vocab_query)
-        
-        for prompt in prompts:
-            self.prompt_select.addItem(prompt["name"], userData=prompt["body"])
-
-        for vocab_query in vocab_queries:
-            self.vocab_query_select.addItem(vocab_query["name"], userData=vocab_query["query"])
-        
-        for theme in themes:
-            self.theme_select.addItem(theme["name"], userData=theme["body"])
-
+        self.preset_rows: PresetRows = {
+                "prompt": PresetFieldRow(prompts, text_area=True),
+                "vocab_query": PresetFieldRow(vocab_queries),
+                "theme": PresetFieldRow(themes)
+        }
         
         self.button = QPushButton("Run")
         self.button.clicked.connect(self.prepare_story)
@@ -130,9 +159,9 @@ class PromptForm(QDialog):
         layout = QFormLayout()
 
 
-        layout.addRow(QLabel("Theme"), theme_row)
-        layout.addRow(QLabel("Collection Query"), vocab_query_row)
-        layout.addRow(QLabel("Prompt"), prompt_row)
+        layout.addRow(QLabel("Theme"), self.preset_rows["theme"].row)
+        layout.addRow(QLabel("Collection Query"), self.preset_rows["vocab_query"].row)
+        layout.addRow(QLabel("Prompt"), self.preset_rows["prompt"].row)
         layout.addWidget(self.button)
 
         self.previous_stories: List[str] = previous_stories
@@ -142,19 +171,6 @@ class PromptForm(QDialog):
             self.previous_stories_button.clicked.connect(self.show_previous_stories)
             layout.addWidget(self.previous_stories_button)
         self.setLayout(layout)
-    
-    
-    def select_on_change_factory(self, select: QComboBox, text: Union[QLineEdit, QPlainTextEdit]) -> Callable[[int], None]:
-        text_setter: Callable[[str]]
-        if isinstance(text, QLineEdit):
-            text_setter = lambda s: cast(QLineEdit, text).setText(s)
-        else:
-            text_setter = lambda s: cast(QPlainTextEdit, text).setPlainText(s)
-
-        def select_on_change(idx: int):
-            text_setter(select.itemData(idx))
-
-        return select_on_change
 
     def show_previous_stories(self):
         showInfo(self.previous_stories[-1])
@@ -170,7 +186,7 @@ class PromptForm(QDialog):
         selected_deck = cast(DeckDict, col.decks.get(selected_deck_id))
         selected_deck_name = selected_deck["name"]
         
-        vocab_query: str = f'deck:"{selected_deck_name}" ' + self.vocab_query_select.currentData()
+        vocab_query: str = f'deck:"{selected_deck_name}" ' + self.preset_rows["vocab_query"].get_value()
         notes: List[Note] = list(map(lambda note_id: col.get_note(note_id), get_notes(mw, vocab_query)))
         
         notes_without_known_index: Dict[str, Note] = {}
@@ -205,8 +221,8 @@ class PromptForm(QDialog):
             vocab.append(note.fields[idx])
             
 
-        theme: str = self.theme.text()
-        prompt: str = self.prompt.toPlainText()
+        theme: str = self.preset_rows["theme"].get_value()
+        prompt: str = self.preset_rows["prompt"].get_value()
         op = QueryOp(
                 parent=mw,
                 op=lambda _: prepare_story(vocab, theme, prompt),
@@ -313,9 +329,9 @@ def create_prompt_dialog():
     selected_deck_name = selected_deck["name"]
     name: str = selected_deck_name or col_name
     previous_stories = config["previous_stories"].get(name, [])
-    vocab_queries: List[VocabQuery] = [*config["vocab_query_presets"], *config["custom_vocab_query_presets"]]
-    themes: List[Theme] = [*config["theme_presets"], *config["custom_theme_presets"]]
-    prompts: List[Prompt] = [*config["prompt_presets"], *config["custom_prompt_presets"]]
+    vocab_queries: List[Preset] = [*config["vocab_query_presets"], *config["custom_vocab_query_presets"]]
+    themes: List[Preset] = [*config["theme_presets"], *config["custom_theme_presets"]]
+    prompts: List[Preset] = [*config["prompt_presets"], *config["custom_prompt_presets"]]
     prompt_window = PromptForm(prompts, vocab_queries, themes, previous_stories)
     setattr(mw, "anki_storytime__prompt_window", prompt_window)
     prompt_window.show()
