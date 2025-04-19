@@ -145,6 +145,16 @@ class PresetFieldRow(QObject):
             # The dialog was confirmed.
             name: str = save_dialog.name_input.text()
             value: str = self.get_value()
+            curr_idx: int = self.preset_select.currentIndex()
+            if name == self.preset_select.currentText():
+                self.preset_select.setItemData(curr_idx, value)
+            else:
+                self.preset_select.addItem(name, value)
+                idx: int = self.preset_select.findText(name)
+                self.preset_select.setCurrentIndex(idx)
+            # Manually trigger this, since it does not retrigger after we add in the new 
+            # option.
+            self.value_field_on_change()
             self.preset_update.emit(Preset(name=name, value=value))
 
 
