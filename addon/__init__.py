@@ -7,7 +7,7 @@ import aqt.gui_hooks
 from aqt.main import AnkiQt
 from aqt.utils import showInfo
 from aqt.operations import QueryOp
-from aqt.qt.qt6 import QDialog, QComboBox, QPushButton, QFormLayout, QLabel, QLineEdit, QPlainTextEdit, QHBoxLayout
+from aqt.qt.qt6 import QDialog, QComboBox, QPushButton, QFormLayout, QLabel, QLineEdit, QPlainTextEdit, QHBoxLayout, pyqtSignal, QObject
 from anki.collection import Collection
 from anki.decks import DeckId, DeckDict
 from anki.notes import NoteId, Note
@@ -57,9 +57,26 @@ class Preset(TypedDict):
     name: str
     value: str
 
+class SaveDialog(QDialog):
+    def __init__(self, preset_name: str):
+        super().__init__()
+        # `presets` should be a reference to the presets
+        self.save_button = QPushButton("Save")
+        self.save_button.clicked.connect(self.accept)
+        layout: QFormLayout = QFormLayout()
+        self.name_input: QLineEdit = QLineEdit()
+        self.name_input.setText(preset_name)
+        layout.addRow("Name", self.name_input)
+        layout.addWidget(self.save_button)
+        self.setLayout(layout)
+         
 
-class PresetFieldRow:
+
+class PresetFieldRow(QObject):
+    preset_update: pyqtSignal = pyqtSignal(dict)
+
     def __init__(self, presets: List[Preset], text_area: bool=False):
+        super().__init__()
         self.value_field_dirty: bool = False
         self.presets_modified: bool = False
         self.presets = presets
@@ -69,6 +86,7 @@ class PresetFieldRow:
 
         self.save_button = QPushButton("Save")
         self.reset_button = QPushButton("Reset")
+
         
         self.preset_select = QComboBox()
         self.preset_select.currentIndexChanged.connect(self.select_on_change)
@@ -87,12 +105,17 @@ class PresetFieldRow:
         self.row.addWidget(self.value_field)
         self.row.addWidget(self.save_button)
         self.row.addWidget(self.reset_button)
+
+        # Hide them until we need to show them when edits happen.
         self.save_button.hide()
         self.reset_button.hide()
 
         self.value_field.textChanged.connect(lambda : self.value_field_on_change())
 
         self.set_value_field: Callable = QPlainTextEdit.setPlainText if text_area else QLineEdit.setText
+        
+        self.save_button.clicked.connect(self.on_save_click)
+        self.reset_button.clicked.connect(lambda _: self.set_value_field(self.value_field, self.preset_select.currentData()))
 
         for preset in presets:
             self.preset_select.addItem(preset["name"], userData=preset["value"])
@@ -115,7 +138,15 @@ class PresetFieldRow:
             self.value_field_dirty = True
             self.save_button.show()
             self.reset_button.show()
-        
+
+    def on_save_click(self):
+        save_dialog = SaveDialog(self.preset_select.currentText())
+        if save_dialog.exec():
+            # The dialog was confirmed.
+            name: str = save_dialog.name_input.text()
+            value: str = self.get_value()
+            self.preset_update.emit(Preset(name=name, value=value))
+
 
 class Config(TypedDict):
     openai_api_key: str
@@ -142,8 +173,9 @@ class PresetRows(TypedDict):
 
 class PromptForm(QDialog):
     # TODO: Add field for selected deck or all decks.
-    def __init__(self, prompts: List[Preset], vocab_queries: List[Preset], themes: List[Preset], previous_stories: List[str] ):
+    def __init__(self, prompts: List[Preset], vocab_queries: List[Preset], themes: List[Preset], previous_stories: List[str], config: Config):
         super(PromptForm, self).__init__()
+        self.config: Config = config
         self.setWindowTitle("AI Prompt Configuration")
         
         self.preset_rows: PresetRows = {
@@ -151,6 +183,13 @@ class PromptForm(QDialog):
                 "vocab_query": PresetFieldRow(vocab_queries),
                 "theme": PresetFieldRow(themes)
         }
+
+        
+        self.preset_rows["theme"].preset_update.connect(lambda preset: self.on_preset_update("custom_theme_presets", preset))
+        
+        self.preset_rows["vocab_query"].preset_update.connect(lambda preset: self.on_preset_update("custom_vocab_query_presets", preset))
+        
+        self.preset_rows["prompt"].preset_update.connect(lambda preset: self.on_preset_update("custom_prompt_presets", preset))
         
         self.button = QPushButton("Run")
         self.button.clicked.connect(self.prepare_story)
@@ -174,6 +213,20 @@ class PromptForm(QDialog):
 
     def show_previous_stories(self):
         showInfo(self.previous_stories[-1])
+
+    def on_preset_update(self, field: str, new_preset: Preset):
+        curr_custom_presets: List[Preset] = self.config[field]
+        try:
+            existing: Preset = next(filter(lambda curr_preset: new_preset["name"] == curr_preset['name'], curr_custom_presets))
+            # Update an existing vaue.
+            existing['value'] = new_preset["value"]
+        except StopIteration:
+            # It does not exist.
+            curr_custom_presets.append(new_preset)
+        
+        mw.addonManager.writeConfig(__name__, cast(Dict, self.config))
+        
+
     
 
     def prepare_story(self):
@@ -332,7 +385,7 @@ def create_prompt_dialog():
     vocab_queries: List[Preset] = [*config["vocab_query_presets"], *config["custom_vocab_query_presets"]]
     themes: List[Preset] = [*config["theme_presets"], *config["custom_theme_presets"]]
     prompts: List[Preset] = [*config["prompt_presets"], *config["custom_prompt_presets"]]
-    prompt_window = PromptForm(prompts, vocab_queries, themes, previous_stories)
+    prompt_window = PromptForm(prompts, vocab_queries, themes, previous_stories, config=config)
     setattr(mw, "anki_storytime__prompt_window", prompt_window)
     prompt_window.show()
 
