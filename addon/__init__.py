@@ -7,7 +7,7 @@ import aqt.gui_hooks
 from aqt.main import AnkiQt
 from aqt.utils import showInfo
 from aqt.operations import QueryOp
-from aqt.qt.qt6 import QDialog, QComboBox, QPushButton, QFormLayout, QLabel, QLineEdit, QPlainTextEdit, QHBoxLayout, pyqtSignal, QObject
+from aqt.qt.qt6 import QDialog, QComboBox, QPushButton, QFormLayout, QLabel, QLineEdit, QPlainTextEdit, QHBoxLayout, pyqtSignal, QObject, QClipboard, QApplication, QCoreApplication
 from anki.collection import Collection
 from anki.decks import DeckId, DeckDict
 from anki.notes import NoteId, Note
@@ -202,23 +202,34 @@ class PromptForm(QDialog):
         self.preset_rows["prompt"].preset_update.connect(lambda preset: self.on_preset_update("custom_prompt_presets", preset))
         
         self.button = QPushButton("Run")
+        self.copy_button = QPushButton("Copy to Clipboard")
         self.button.clicked.connect(self.prepare_story)
+        self.copy_button.clicked.connect(lambda _: self.prepare_story(copy_to_clipboard=True))
         
 
         layout = QFormLayout()
+        run_button_row = QHBoxLayout()
 
 
         layout.addRow(QLabel("Theme"), self.preset_rows["theme"].row)
         layout.addRow(QLabel("Collection Query"), self.preset_rows["vocab_query"].row)
         layout.addRow(QLabel("Prompt"), self.preset_rows["prompt"].row)
-        layout.addWidget(self.button)
+        run_button_row.addWidget(self.button)
+        run_button_row.addWidget(self.copy_button)
+        layout.addRow(run_button_row)
+
+        if not self.config['openai_api_key']:
+            # No api key provided, we disable the Run button.
+            self.button.setDisabled(True)
+            self.button.setToolTip("No OpenAI key provided, cannot automatically query. Please use the Copy to Clipboard option")
+
 
         self.previous_stories: List[str] = previous_stories
 
         if self.previous_stories:
             self.previous_stories_button = QPushButton("Previous Stories")
             self.previous_stories_button.clicked.connect(self.show_previous_stories)
-            layout.addWidget(self.previous_stories_button)
+            layout.addRow(self.previous_stories_button)
         self.setLayout(layout)
 
     def show_previous_stories(self):
@@ -236,10 +247,9 @@ class PromptForm(QDialog):
         
         mw.addonManager.writeConfig(__name__, cast(Dict, self.config))
         
+     
 
-    
-
-    def prepare_story(self):
+    def prepare_story(self, copy_to_clipboard: bool=False):
         # Both the following casts are guaranteed safe since the button won't show unless
         # we both have a collection and a deck is selected.
         config: Config = get_config()
@@ -288,12 +298,12 @@ class PromptForm(QDialog):
         prompt: str = self.preset_rows["prompt"].get_value()
         op = QueryOp(
                 parent=mw,
-                op=lambda _: prepare_story(vocab, theme, prompt),
+                op=lambda _: prepare_story(vocab, theme, prompt, copy_to_clipboard),
                 success=lambda response: prepare_story_on_success(response, deck_name=selected_deck_name), 
         )
 
         op.with_progress().run_in_background()
-
+        
         self.close()
 
 
@@ -330,6 +340,7 @@ def get_notes(mw: AnkiQt, query: str) -> Sequence[NoteId]:
 def prepare_story_on_success(story: Union[str, None], deck_name: Union[str, None]=None) -> None:
     if story is None:
         # Likely note types without a known index were found, not an error. Just return.
+        # Or the prompt was copied to the clipboard.
         return
     col_name: str = cast(Collection, mw.col).path
     name: str = deck_name or col_name # If no deck name is set, we pulled from all decks so use col_name.
@@ -346,7 +357,7 @@ def prepare_story_on_success(story: Union[str, None], deck_name: Union[str, None
     showInfo(story, title="AI Storytime")
 
 
-def prepare_story(vocab: List[str], theme: str, prompt: str) -> str:
+def prepare_story(vocab: List[str], theme: str, prompt: str, copy_to_clipboard: bool=False) -> Union[str, None]:
     config: Config = get_config()
     if len(vocab) > 0:
         if config.get("MOCK_API_RESPONSE") is True:
@@ -357,9 +368,23 @@ def prepare_story(vocab: List[str], theme: str, prompt: str) -> str:
             print(response)
             return response
         api_key = config.get("openai_api_key", "")
-        if api_key:
-            filled_prompt: str = prompt.format(vocab=vocab, theme=theme)  
+        filled_prompt: str = prompt.format(vocab="\n".join(vocab), theme=theme)  
+        if api_key and not copy_to_clipboard:
             return get_openai_response(filled_prompt, config['openai_model'], api_key) 
+        elif copy_to_clipboard:
+            # It wants to assume QCoreApplication for some reason, so we need to cast it to 
+            # get the linter to stop complaining.
+            app: Union[QApplication, None] = cast(Union[QApplication, None], QApplication.instance())
+            clipboard_success: bool = False
+            if app is not None:
+                clipboard = app.clipboard()
+                if clipboard is not None:
+                    clipboard.setText(filled_prompt)
+                    clipboard_success = True
+
+            if not clipboard_success:
+                raise Exception("Failed to copy to clipboard")
+
 
         else:
             raise Exception("No API Key set for OpenAI, please add this key in this addon's config")
