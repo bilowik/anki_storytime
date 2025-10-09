@@ -370,6 +370,7 @@ class PromptForm(QDialog):
             self.previous_stories_button.clicked.connect(self.show_previous_stories)
             layout.addRow(self.previous_stories_button)
         self.setLayout(layout)
+        self.resize(1200, 800)
 
     def show_previous_stories(self):
         story_view: StoryView = StoryView(self.previous_stories, 
