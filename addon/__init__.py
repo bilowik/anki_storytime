@@ -37,13 +37,35 @@ class StoryView(QWidget):
     def __init__(self, story: str):
         super().__init__()
         layout: QVBoxLayout = QVBoxLayout()
+
+        
+        # Text view
         text_view: QPlainTextEdit = QPlainTextEdit()
         text_view.setReadOnly(True)
         text_view.setPlainText(story)
         layout.addWidget(text_view)
+
+        # Button
+        copy_button: QPushButton = QPushButton()
+        copy_button.setText("Copy to clipboard")
+        copy_button.clicked.connect(self.copy_to_clipboard_on_click)
+        layout.addWidget(copy_button)
+        
         self.setLayout(layout)
         self.setWindowTitle("Anki Storytime")
         self.resize(800, 600)
+        self.text_view = text_view
+    
+    def copy_to_clipboard_on_click(self) -> None:
+        app: QApplication = mw.app
+        clipboard_success: bool = False
+        clipboard = app.clipboard()
+        if clipboard is not None:
+            clipboard.setText(self.text_view.toPlainText())
+            clipboard_success = True
+
+        if not clipboard_success:
+            raise Exception("Failed to copy to clipboard")
 
 
 class NoteTypeForm(QDialog):
@@ -449,17 +471,12 @@ def prepare_story(
         if api_key and not copy_to_clipboard:
             return get_openai_response(filled_prompt, config["openai_model"], api_key)
         elif copy_to_clipboard:
-            # It wants to assume QCoreApplication for some reason, so we need to cast it to
-            # get the linter to stop complaining.
-            app: Union[QApplication, None] = cast(
-                Union[QApplication, None], QApplication.instance()
-            )
+            app: QApplication = mw.app
             clipboard_success: bool = False
-            if app is not None:
-                clipboard = app.clipboard()
-                if clipboard is not None:
-                    clipboard.setText(filled_prompt)
-                    clipboard_success = True
+            clipboard = app.clipboard()
+            if clipboard is not None:
+                clipboard.setText(filled_prompt)
+                clipboard_success = True
 
             if not clipboard_success:
                 raise Exception("Failed to copy to clipboard")
