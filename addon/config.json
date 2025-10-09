@@ -49,14 +49,10 @@
 			"value": "I need example sentences in {lang} with the following vocabulary terms that will be listed individually on separate lines starting after the first empty newline. The theme you are given for these sentences is '{theme}'. You must utilize every single vocabulary term provided. It should be exactly one sentence per provided vocabulary term. Do not respond with any other text other than the sentences. The sentences should be exactly one per line, with an empty newline in between each. Following are the vocabulary terms: \n\n{vocab}"
 		}
 	],
-	"custom_vocab_query_presets": [],
-	"custom_theme_presets": [],
-	"custom_prompt_presets": [],
 	"previous_stories": {},
 	"max_stories_per_collection": 10,
 	"note_type_field": {},
 	"story_font_size_idx": 6,
 	"story_font_family": "",
-	"lang_presets": [{"name": "Japanese", "value": "Japanese"}],
-	"custom_lang_presets": []
+	"lang_presets": [{"name": "Japanese", "value": "Japanese"}]
 }

@@ -322,10 +322,6 @@ class Config(TypedDict):
     theme_presets: List[Preset]
     prompt_presets: List[Preset]
     lang_presets: List[Preset]
-    custom_vocab_query_presets: List[Preset]
-    custom_theme_presets: List[Preset]
-    custom_prompt_presets: List[Preset]
-    custom_lang_presets: List[Preset]
     previous_stories: Dict[str, List[str]]
     max_stories_per_collection: int
     story_font_size_idx: int
@@ -370,19 +366,19 @@ class PromptForm(QDialog):
         }
 
         self.preset_rows["theme"].preset_update.connect(
-            lambda preset: self.on_preset_update("custom_theme_presets", preset)
+            lambda preset: self.on_preset_update("theme_presets", preset)
         )
 
         self.preset_rows["vocab_query"].preset_update.connect(
-            lambda preset: self.on_preset_update("custom_vocab_query_presets", preset)
+            lambda preset: self.on_preset_update("vocab_query_presets", preset)
         )
 
         self.preset_rows["prompt"].preset_update.connect(
-            lambda preset: self.on_preset_update("custom_prompt_presets", preset)
+            lambda preset: self.on_preset_update("prompt_presets", preset)
         )
         
         self.preset_rows["lang"].preset_update.connect(
-            lambda preset: self.on_preset_update("custom_lang_presets", preset)
+            lambda preset: self.on_preset_update("lang_presets", preset)
         )
 
         self.button = QPushButton("Run")
@@ -512,11 +508,11 @@ class PromptForm(QDialog):
 
 
 def main():
+    validate_config()
     aqt.gui_hooks.overview_will_render_bottom.append(add_ai_button)
     return
 
-
-def get_config() -> Config:
+def validate_config() -> None:
     config: Dict = mw.addonManager.getConfig(__name__) or {}
     required_fields: Set[str] = set(Config.__required_keys__)
     missing_fields: Set[str] = required_fields - set(config.keys())
@@ -530,8 +526,10 @@ def get_config() -> Config:
             f"Anki Storytime addon is missing required configuration fields, this is likely a programming error. It may not function properly. Please try populating the provided fields or resetting to default values. Missing fields: {missing_fields_str}"
         )
         raise Exception("Invalid configuration for Anki Storytime")
-    # Can safely cast here since we know it has all required fields.
-    return cast(Config, config)
+
+
+def get_config() -> Config:
+    return cast(Config, mw.addonManager.getConfig(__name__) or {})
 
 
 def get_notes(mw: AnkiQt, query: str) -> Sequence[NoteId]:
@@ -638,21 +636,8 @@ def create_prompt_dialog():
     selected_deck_name = selected_deck["name"]
     name: str = selected_deck_name or col_name
     previous_stories = config["previous_stories"].get(name, [])
-    vocab_queries: List[Preset] = [
-        *config["vocab_query_presets"],
-        *config["custom_vocab_query_presets"],
-    ]
-    themes: List[Preset] = [*config["theme_presets"], *config["custom_theme_presets"]]
-    prompts: List[Preset] = [
-        *config["prompt_presets"],
-        *config["custom_prompt_presets"],
-    ]
-    langs: List[Preset] = [
-            *config["lang_presets"],
-            *config["custom_lang_presets"],
-    ]
     prompt_window = PromptForm(
-        prompts, vocab_queries, themes, langs, previous_stories, config=config
+        config["prompt_presets"], config["vocab_query_presets"], config["theme_presets"], config["lang_presets"], previous_stories, config=config
     )
     setattr(mw, "anki_storytime__prompt_window", prompt_window)
     prompt_window.show()
