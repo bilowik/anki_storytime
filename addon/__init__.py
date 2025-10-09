@@ -24,11 +24,14 @@ from aqt.qt.qt6 import (
     QFont,
     QCloseEvent,
     QIcon,
+    QFontDatabase,
 )
 from anki.collection import Collection
 from anki.decks import DeckId, DeckDict
 from anki.notes import NoteId, Note
 from anki.models import NotetypeDict
+
+import math
 
 AI_BUTTON_URI = "anki_storytime__ai_button"
 MAX_VOCAB_WORDS = 100
@@ -37,10 +40,13 @@ OPENAI_RESPONSE_URL = "https://api.openai.com/v1/responses"
 
 
 class StoryView(QWidget):
-    def __init__(self, stories: List[str], idx: int=-1, font_size: int=16):
+    def __init__(self, stories: List[str], idx: int=-1, font_size_idx: int=4):
         super().__init__()
+        self.font_sizes = QFontDatabase.standardSizes()
+        self.font_size_idx = font_size_idx
         self.story_font: QFont = QFont()
-        self.story_font.setPointSize(font_size)
+        self.story_font.setPointSize(self.font_sizes[font_size_idx])
+        
 
         layout: QVBoxLayout = QVBoxLayout()
         top_row_layout: QHBoxLayout = QHBoxLayout()
@@ -102,10 +108,9 @@ class StoryView(QWidget):
     def closeEvent(self, a0: QCloseEvent | None):
         config: Config = get_config()
         
-        curr_font_size: int = self.story_font.pointSize()
-        if config['story_font_size'] != curr_font_size:
+        if config['story_font_size_idx'] != self.font_size_idx:
             # Update the font size so that it may persist
-            config['story_font_size'] = curr_font_size
+            config['story_font_size_idx'] = self.font_size_idx 
             mw.addonManager.writeConfig(__name__, cast(Dict, config))
 
         if a0:
@@ -113,8 +118,17 @@ class StoryView(QWidget):
 
     def font_size_on_click_factory(self, change: int):
         def font_size_on_click():
-            new_font_size = self.story_font.pointSize() + change
-            self.story_font.setPointSize(new_font_size)
+            new_font_size_idx: int = self.font_size_idx + change
+
+            if new_font_size_idx < 0:
+                new_font_size_idx = 0
+            if new_font_size_idx >= len(self.font_sizes):
+                new_font_size_idx = len(self.font_sizes) - 1
+
+
+            self.font_size_idx = new_font_size_idx 
+            self.story_font.setPointSize(self.font_sizes[self.font_size_idx])
+
             self.text_view.setFont(self.story_font)
         return font_size_on_click
             
@@ -280,7 +294,7 @@ class Config(TypedDict):
     custom_prompt_presets: List[Preset]
     previous_stories: Dict[str, List[str]]
     max_stories_per_collection: int
-    story_font_size: int
+    story_font_size_idx: int
 
     # This is a mapping of note types to a given field index
     # in order to determine what field to pull the vocab from.
@@ -359,7 +373,7 @@ class PromptForm(QDialog):
 
     def show_previous_stories(self):
         story_view: StoryView = StoryView(self.previous_stories, 
-                                          font_size=self.config['story_font_size'])
+                                          font_size_idx=self.config['story_font_size_idx'])
         setattr(mw, "anki_storytime__previous_story_view", story_view)
         story_view.show()
         story_view.raise_()
@@ -502,7 +516,7 @@ def prepare_story_on_success(
         previous_stories[name].pop(0)
     mw.addonManager.writeConfig(__name__, cast(Dict, config))
     
-    story_view: StoryView = StoryView(previous_stories[name], font_size=config['story_font_size'])
+    story_view: StoryView = StoryView(previous_stories[name], font_size_idx=config['story_font_size_idx'])
     setattr(mw, "anki_storytime__story_view", story_view)
     story_view.show()
 
@@ -522,7 +536,6 @@ def prepare_story(
                 response = (
                     response[0:1000] + f"... ({len(response) - 1000} characters omitted"
                 )
-            print(response)
             return response
         api_key = config.get("openai_api_key", "")
         filled_prompt: str = prompt.format(vocab="\n".join(vocab), theme=theme)
