@@ -34,7 +34,7 @@ OPENAI_RESPONSE_URL = "https://api.openai.com/v1/responses"
 
 
 class StoryView(QWidget):
-    def __init__(self, story: str):
+    def __init__(self, stories: List[str], idx: int=-1):
         super().__init__()
         layout: QVBoxLayout = QVBoxLayout()
 
@@ -42,16 +42,29 @@ class StoryView(QWidget):
         # Text view
         text_view: QPlainTextEdit = QPlainTextEdit()
         text_view.setReadOnly(True)
-        text_view.setPlainText(story)
-        layout.addWidget(text_view)
+        text_view.setPlainText(stories[idx])
+
+        # Combo box
+        story_select: QComboBox = QComboBox()
+        for story in stories:
+            story_select.addItem(story[0:48] + '...', userData=story)
+        story_select.setCurrentIndex(len(stories) - 1)
+        self.story_select = story_select
+        story_select.currentIndexChanged.connect(self.story_select_on_change)
+
 
         # Button
         copy_button: QPushButton = QPushButton()
         copy_button.setText("Copy to clipboard")
         copy_button.clicked.connect(self.copy_to_clipboard_on_click)
-        layout.addWidget(copy_button)
         
+        # Layout
+        layout.addWidget(story_select)
+        layout.addWidget(text_view)
+        layout.addWidget(copy_button)
+
         self.setLayout(layout)
+
         self.setWindowTitle("Anki Storytime")
         self.resize(800, 600)
         self.text_view = text_view
@@ -66,6 +79,9 @@ class StoryView(QWidget):
 
         if not clipboard_success:
             raise Exception("Failed to copy to clipboard")
+
+    def story_select_on_change(self):
+        self.text_view.setPlainText(self.story_select.currentData())
 
 
 class NoteTypeForm(QDialog):
@@ -304,9 +320,12 @@ class PromptForm(QDialog):
         self.setLayout(layout)
 
     def show_previous_stories(self):
-        story_view: StoryView = StoryView(self.previous_stories[-1])
+        story_view: StoryView = StoryView(self.previous_stories)
         setattr(mw, "anki_storytime__previous_story_view", story_view)
         story_view.show()
+        story_view.raise_()
+        story_view.activateWindow()
+        self.close()
 
     def on_preset_update(self, field: str, new_preset: Preset):
         curr_custom_presets: List[Preset] = self.config[field]
@@ -444,7 +463,7 @@ def prepare_story_on_success(
         previous_stories[name].pop(0)
     mw.addonManager.writeConfig(__name__, cast(Dict, config))
     
-    story_view: StoryView = StoryView(story)
+    story_view: StoryView = StoryView(previous_stories[name])
     setattr(mw, "anki_storytime__story_view", story_view)
     story_view.show()
 
