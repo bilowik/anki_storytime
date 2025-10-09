@@ -70,7 +70,7 @@ class StoryView(QWidget):
             config['story_font_family'] = curr_font
             save_config(config)
         else:
-            curr_font = config['story_font_family'] 
+            curr_font = config['story_font_family']
             
         font_select: QComboBox = QComboBox()
         font_select.addItems(QFontDatabase.families())
@@ -80,7 +80,16 @@ class StoryView(QWidget):
         self.font_select = font_select
         
         self.story_font.setFamily(curr_font)
-        self.text_view.setFont(self.story_font)
+
+        if curr_font in QFontDatabase.families():
+            self.text_view.setFont(self.story_font)
+        else:
+            # The font from the config was not found. 
+            # Reset config back to empty string, and show error
+            showInfo(f"An error occured loading the font '{curr_font}' from config, falling back to Anki default.")
+            config['story_font_family'] = ''
+            save_config(config)
+
         
         # Copy to clipboard button
         copy_button: QPushButton = QPushButton()
