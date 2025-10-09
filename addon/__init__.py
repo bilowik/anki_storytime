@@ -31,8 +31,6 @@ from anki.decks import DeckId, DeckDict
 from anki.notes import NoteId, Note
 from anki.models import NotetypeDict
 
-import math
-
 AI_BUTTON_URI = "anki_storytime__ai_button"
 MAX_VOCAB_WORDS = 100
 
@@ -42,6 +40,7 @@ OPENAI_RESPONSE_URL = "https://api.openai.com/v1/responses"
 class StoryView(QWidget):
     def __init__(self, stories: List[str], idx: int=-1, font_size_idx: int=4):
         super().__init__()
+        config: Config = get_config()
         self.font_sizes = QFontDatabase.standardSizes()
         self.font_size_idx = font_size_idx
         self.story_font: QFont = QFont()
@@ -49,13 +48,12 @@ class StoryView(QWidget):
         
 
         layout: QVBoxLayout = QVBoxLayout()
-        top_row_layout: QHBoxLayout = QHBoxLayout()
+        font_row_layout: QHBoxLayout = QHBoxLayout()
         
         # Text view
         text_view: QPlainTextEdit = QPlainTextEdit()
         text_view.setReadOnly(True)
         text_view.setPlainText(stories[idx])
-        text_view.setFont(self.story_font)
         self.text_view = text_view
 
         # Combo box
@@ -65,9 +63,25 @@ class StoryView(QWidget):
         story_select.setCurrentIndex(len(stories) - 1)
         self.story_select = story_select
         story_select.currentIndexChanged.connect(self.story_select_on_change)
-        top_row_layout.addWidget(story_select)
-
-
+    
+        # Font Box
+        curr_font: str = self.text_view.fontInfo().family()
+        if config['story_font_family'] == '':
+            config['story_font_family'] = curr_font
+            save_config(config)
+        else:
+            curr_font = config['story_font_family'] 
+            
+        font_select: QComboBox = QComboBox()
+        font_select.addItems(QFontDatabase.families())
+        font_select.setCurrentText(curr_font)
+        font_row_layout.addWidget(font_select)
+        font_select.currentIndexChanged.connect(self.font_select_on_change)
+        self.font_select = font_select
+        
+        self.story_font.setFamily(curr_font)
+        self.text_view.setFont(self.story_font)
+        
         # Copy to clipboard button
         copy_button: QPushButton = QPushButton()
         copy_button.setText("Copy to clipboard")
@@ -78,10 +92,11 @@ class StoryView(QWidget):
             font_size_button: QPushButton = QPushButton()
             font_size_button.setIcon(QIcon.fromTheme(icon))
             font_size_button.clicked.connect(self.font_size_on_click_factory(change))
-            top_row_layout.addWidget(font_size_button)
+            font_row_layout.addWidget(font_size_button)
 
         # Layout
-        layout.addLayout(top_row_layout)
+        layout.addWidget(story_select)
+        layout.addLayout(font_row_layout)
         layout.addWidget(text_view)
         layout.addWidget(copy_button)
 
@@ -111,7 +126,7 @@ class StoryView(QWidget):
         if config['story_font_size_idx'] != self.font_size_idx:
             # Update the font size so that it may persist
             config['story_font_size_idx'] = self.font_size_idx 
-            mw.addonManager.writeConfig(__name__, cast(Dict, config))
+            save_config(config)
 
         if a0:
             a0.accept()
@@ -132,6 +147,14 @@ class StoryView(QWidget):
             self.text_view.setFont(self.story_font)
         return font_size_on_click
             
+    def font_select_on_change(self):
+        curr_font: str = self.font_select.currentText()
+        self.story_font.setFamily(curr_font)
+        self.text_view.setFont(self.story_font)
+        config = get_config()
+        if config['story_font_family'] != curr_font:
+            config['story_font_family'] = curr_font
+            save_config(config)
 
 
 
@@ -165,7 +188,7 @@ class NoteTypeForm(QDialog):
 
         for name, select in self.note_selects.items():
             note_type_field[name] = select.currentIndex()
-        mw.addonManager.writeConfig(__name__, cast(Dict, config))
+        save_config(config)
         self.close()
 
 
@@ -295,10 +318,15 @@ class Config(TypedDict):
     previous_stories: Dict[str, List[str]]
     max_stories_per_collection: int
     story_font_size_idx: int
+    story_font_family: str
 
     # This is a mapping of note types to a given field index
     # in order to determine what field to pull the vocab from.
     note_type_field: Dict[str, int]
+    
+
+def save_config(config: Config):
+    mw.addonManager.writeConfig(__name__, cast(Dict, config))
 
 
 class PresetRows(TypedDict):
@@ -396,7 +424,7 @@ class PromptForm(QDialog):
             # It does not exist.
             curr_custom_presets.append(new_preset)
 
-        mw.addonManager.writeConfig(__name__, cast(Dict, self.config))
+        save_config(self.config)
 
     def prepare_story(self, copy_to_clipboard: bool = False):
         # Both the following casts are guaranteed safe since the button won't show unless
@@ -515,7 +543,7 @@ def prepare_story_on_success(
     if len(previous_stories[name]) > config["max_stories_per_collection"]:
         # Pop the first story off, which is the oldest.
         previous_stories[name].pop(0)
-    mw.addonManager.writeConfig(__name__, cast(Dict, config))
+    save_config(config)
     
     story_view: StoryView = StoryView(previous_stories[name], font_size_idx=config['story_font_size_idx'])
     setattr(mw, "anki_storytime__story_view", story_view)
