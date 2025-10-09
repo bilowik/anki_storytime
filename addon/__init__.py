@@ -20,7 +20,10 @@ from aqt.qt.qt6 import (
     QObject,
     QApplication,
     QVBoxLayout,
-    QWidget
+    QWidget,
+    QFont,
+    QCloseEvent,
+    QIcon,
 )
 from anki.collection import Collection
 from anki.decks import DeckId, DeckDict
@@ -34,15 +37,20 @@ OPENAI_RESPONSE_URL = "https://api.openai.com/v1/responses"
 
 
 class StoryView(QWidget):
-    def __init__(self, stories: List[str], idx: int=-1):
+    def __init__(self, stories: List[str], idx: int=-1, font_size: int=16):
         super().__init__()
-        layout: QVBoxLayout = QVBoxLayout()
+        self.story_font: QFont = QFont()
+        self.story_font.setPointSize(font_size)
 
+        layout: QVBoxLayout = QVBoxLayout()
+        top_row_layout: QHBoxLayout = QHBoxLayout()
         
         # Text view
         text_view: QPlainTextEdit = QPlainTextEdit()
         text_view.setReadOnly(True)
         text_view.setPlainText(stories[idx])
+        text_view.setFont(self.story_font)
+        self.text_view = text_view
 
         # Combo box
         story_select: QComboBox = QComboBox()
@@ -51,15 +59,23 @@ class StoryView(QWidget):
         story_select.setCurrentIndex(len(stories) - 1)
         self.story_select = story_select
         story_select.currentIndexChanged.connect(self.story_select_on_change)
+        top_row_layout.addWidget(story_select)
 
 
-        # Button
+        # Copy to clipboard button
         copy_button: QPushButton = QPushButton()
         copy_button.setText("Copy to clipboard")
         copy_button.clicked.connect(self.copy_to_clipboard_on_click)
-        
+
+        # Font size buttons
+        for (change, icon) in [(-1, QIcon.ThemeIcon.ListRemove), (1, QIcon.ThemeIcon.ListAdd)]:
+            font_size_button: QPushButton = QPushButton()
+            font_size_button.setIcon(QIcon.fromTheme(icon))
+            font_size_button.clicked.connect(self.font_size_on_click_factory(change))
+            top_row_layout.addWidget(font_size_button)
+
         # Layout
-        layout.addWidget(story_select)
+        layout.addLayout(top_row_layout)
         layout.addWidget(text_view)
         layout.addWidget(copy_button)
 
@@ -68,7 +84,7 @@ class StoryView(QWidget):
         self.setWindowTitle("Anki Storytime")
         self.resize(800, 600)
         self.text_view = text_view
-    
+
     def copy_to_clipboard_on_click(self) -> None:
         app: QApplication = mw.app
         clipboard_success: bool = False
@@ -82,6 +98,27 @@ class StoryView(QWidget):
 
     def story_select_on_change(self):
         self.text_view.setPlainText(self.story_select.currentData())
+
+    def closeEvent(self, a0: QCloseEvent | None):
+        config: Config = get_config()
+        
+        curr_font_size: int = self.story_font.pointSize()
+        if config['story_font_size'] != curr_font_size:
+            # Update the font size so that it may persist
+            config['story_font_size'] = curr_font_size
+            mw.addonManager.writeConfig(__name__, cast(Dict, config))
+
+        if a0:
+            a0.accept()
+
+    def font_size_on_click_factory(self, change: int):
+        def font_size_on_click():
+            new_font_size = self.story_font.pointSize() + change
+            self.story_font.setPointSize(new_font_size)
+            self.text_view.setFont(self.story_font)
+        return font_size_on_click
+            
+
 
 
 class NoteTypeForm(QDialog):
@@ -243,6 +280,7 @@ class Config(TypedDict):
     custom_prompt_presets: List[Preset]
     previous_stories: Dict[str, List[str]]
     max_stories_per_collection: int
+    story_font_size: int
 
     # This is a mapping of note types to a given field index
     # in order to determine what field to pull the vocab from.
@@ -320,7 +358,8 @@ class PromptForm(QDialog):
         self.setLayout(layout)
 
     def show_previous_stories(self):
-        story_view: StoryView = StoryView(self.previous_stories)
+        story_view: StoryView = StoryView(self.previous_stories, 
+                                          font_size=self.config['story_font_size'])
         setattr(mw, "anki_storytime__previous_story_view", story_view)
         story_view.show()
         story_view.raise_()
@@ -463,7 +502,7 @@ def prepare_story_on_success(
         previous_stories[name].pop(0)
     mw.addonManager.writeConfig(__name__, cast(Dict, config))
     
-    story_view: StoryView = StoryView(previous_stories[name])
+    story_view: StoryView = StoryView(previous_stories[name], font_size=config['story_font_size'])
     setattr(mw, "anki_storytime__story_view", story_view)
     story_view.show()
 

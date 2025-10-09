@@ -54,5 +54,6 @@
 	"custom_prompt_presets": [],
 	"previous_stories": {},
 	"max_stories_per_collection": 10,
-	"note_type_field": {}
+	"note_type_field": {},
+	"story_font_size": 16
 }
