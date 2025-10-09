@@ -321,9 +321,11 @@ class Config(TypedDict):
     vocab_query_presets: List[Preset]
     theme_presets: List[Preset]
     prompt_presets: List[Preset]
+    lang_presets: List[Preset]
     custom_vocab_query_presets: List[Preset]
     custom_theme_presets: List[Preset]
     custom_prompt_presets: List[Preset]
+    custom_lang_presets: List[Preset]
     previous_stories: Dict[str, List[str]]
     max_stories_per_collection: int
     story_font_size_idx: int
@@ -342,6 +344,7 @@ class PresetRows(TypedDict):
     prompt: PresetFieldRow
     vocab_query: PresetFieldRow
     theme: PresetFieldRow
+    lang: PresetFieldRow
 
 
 class PromptForm(QDialog):
@@ -351,6 +354,7 @@ class PromptForm(QDialog):
         prompts: List[Preset],
         vocab_queries: List[Preset],
         themes: List[Preset],
+        langs: List[Preset],
         previous_stories: List[str],
         config: Config,
     ):
@@ -362,6 +366,7 @@ class PromptForm(QDialog):
             "prompt": PresetFieldRow(prompts, text_area=True),
             "vocab_query": PresetFieldRow(vocab_queries),
             "theme": PresetFieldRow(themes),
+            "lang": PresetFieldRow(langs)
         }
 
         self.preset_rows["theme"].preset_update.connect(
@@ -374,6 +379,10 @@ class PromptForm(QDialog):
 
         self.preset_rows["prompt"].preset_update.connect(
             lambda preset: self.on_preset_update("custom_prompt_presets", preset)
+        )
+        
+        self.preset_rows["lang"].preset_update.connect(
+            lambda preset: self.on_preset_update("custom_lang_presets", preset)
         )
 
         self.button = QPushButton("Run")
@@ -388,6 +397,7 @@ class PromptForm(QDialog):
 
         layout.addRow(QLabel("Theme"), self.preset_rows["theme"].row)
         layout.addRow(QLabel("Collection Query"), self.preset_rows["vocab_query"].row)
+        layout.addRow(QLabel("Language"), self.preset_rows["lang"].row)
         layout.addRow(QLabel("Prompt"), self.preset_rows["prompt"].row)
         run_button_row.addWidget(self.button)
         run_button_row.addWidget(self.copy_button)
@@ -637,8 +647,12 @@ def create_prompt_dialog():
         *config["prompt_presets"],
         *config["custom_prompt_presets"],
     ]
+    langs: List[Preset] = [
+            *config["lang_presets"],
+            *config["custom_lang_presets"],
+    ]
     prompt_window = PromptForm(
-        prompts, vocab_queries, themes, previous_stories, config=config
+        prompts, vocab_queries, themes, langs, previous_stories, config=config
     )
     setattr(mw, "anki_storytime__prompt_window", prompt_window)
     prompt_window.show()
