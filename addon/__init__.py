@@ -18,9 +18,9 @@ from aqt.qt.qt6 import (
     QHBoxLayout,
     pyqtSignal,
     QObject,
-    QClipboard,
     QApplication,
-    QCoreApplication,
+    QVBoxLayout,
+    QWidget
 )
 from anki.collection import Collection
 from anki.decks import DeckId, DeckDict
@@ -31,6 +31,19 @@ AI_BUTTON_URI = "anki_storytime__ai_button"
 MAX_VOCAB_WORDS = 100
 
 OPENAI_RESPONSE_URL = "https://api.openai.com/v1/responses"
+
+
+class StoryView(QWidget):
+    def __init__(self, story: str):
+        super().__init__()
+        layout: QVBoxLayout = QVBoxLayout()
+        text_view: QPlainTextEdit = QPlainTextEdit()
+        text_view.setReadOnly(True)
+        text_view.setPlainText(story)
+        layout.addWidget(text_view)
+        self.setLayout(layout)
+        self.setWindowTitle("Anki Storytime")
+        self.resize(800, 600)
 
 
 class NoteTypeForm(QDialog):
@@ -269,7 +282,9 @@ class PromptForm(QDialog):
         self.setLayout(layout)
 
     def show_previous_stories(self):
-        showInfo(self.previous_stories[-1])
+        story_view: StoryView = StoryView(self.previous_stories[-1])
+        setattr(mw, "anki_storytime__previous_story_view", story_view)
+        story_view.show()
 
     def on_preset_update(self, field: str, new_preset: Preset):
         curr_custom_presets: List[Preset] = self.config[field]
@@ -406,7 +421,10 @@ def prepare_story_on_success(
         # Pop the first story off, which is the oldest.
         previous_stories[name].pop(0)
     mw.addonManager.writeConfig(__name__, cast(Dict, config))
-    showInfo(story, title="AI Storytime")
+    
+    story_view: StoryView = StoryView(story)
+    setattr(mw, "anki_storytime__story_view", story_view)
+    story_view.show()
 
 
 def prepare_story(
