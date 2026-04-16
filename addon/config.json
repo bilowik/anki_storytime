@@ -1,6 +1,6 @@
 {
 	"openai_api_key": "",
-	"openai_model": "gpt-4o",
+	"openai_model": "gpt-5.2",
 	"MOCK_API_RESPONSE": false,
 	"vocab_query_presets": [
 		{
