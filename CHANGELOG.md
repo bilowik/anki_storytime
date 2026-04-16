@@ -1,5 +1,6 @@
 # 1.0.1
  - Fix `lang` variable not being provided to template.
+ - Update default model to gpt 5.2
 
 # 1.0.0
  - Remove `custom_` preset config fields
