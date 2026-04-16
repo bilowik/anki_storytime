@@ -494,9 +494,10 @@ class PromptForm(QDialog):
 
         theme: str = self.preset_rows["theme"].get_value()
         prompt: str = self.preset_rows["prompt"].get_value()
+        lang: str = self.preset_rows["lang"].get_value()
         op = QueryOp(
             parent=mw,
-            op=lambda _: prepare_story(vocab, theme, prompt, copy_to_clipboard),
+            op=lambda _: prepare_story(vocab, theme, prompt, lang, copy_to_clipboard),
             success=lambda response: prepare_story_on_success(
                 response, deck_name=selected_deck_name
             ),
@@ -568,7 +569,7 @@ def prepare_story_on_success(
 
 
 def prepare_story(
-    vocab: List[str], theme: str, prompt: str, copy_to_clipboard: bool = False
+        vocab: List[str], theme: str, prompt: str, lang: str, copy_to_clipboard: bool = False
 ) -> Union[str, None]:
     config: Config = get_config()
     if len(vocab) > 0:
@@ -584,7 +585,7 @@ def prepare_story(
                 )
             return response
         api_key = config.get("openai_api_key", "")
-        filled_prompt: str = prompt.format(vocab="\n".join(vocab), theme=theme)
+        filled_prompt: str = prompt.format(vocab="\n".join(vocab), theme=theme, lang=lang)
         if api_key and not copy_to_clipboard:
             return get_openai_response(filled_prompt, config["openai_model"], api_key)
         elif copy_to_clipboard:
