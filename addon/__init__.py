@@ -38,18 +38,17 @@ OPENAI_RESPONSE_URL = "https://api.openai.com/v1/responses"
 
 
 class StoryView(QWidget):
-    def __init__(self, stories: List[str], idx: int=-1, font_size_idx: int=4):
+    def __init__(self, stories: List[str], idx: int = -1, font_size_idx: int = 4):
         super().__init__()
         config: Config = get_config()
         self.font_sizes = QFontDatabase.standardSizes()
         self.font_size_idx = font_size_idx
         self.story_font: QFont = QFont()
         self.story_font.setPointSize(self.font_sizes[font_size_idx])
-        
 
         layout: QVBoxLayout = QVBoxLayout()
         font_row_layout: QHBoxLayout = QHBoxLayout()
-        
+
         # Text view
         text_view: QPlainTextEdit = QPlainTextEdit()
         text_view.setReadOnly(True)
@@ -63,7 +62,7 @@ class StoryView(QWidget):
         story_select.setCurrentIndex(len(stories) - 1)
         self.story_select = story_select
         story_select.currentIndexChanged.connect(self.story_select_on_change)
-    
+
         # Font Box
         curr_font: str = self.text_view.fontInfo().family()
         if config['story_font_family'] == '':
@@ -71,26 +70,26 @@ class StoryView(QWidget):
             save_config(config)
         else:
             curr_font = config['story_font_family']
-            
+
         font_select: QComboBox = QComboBox()
         font_select.addItems(QFontDatabase.families())
         font_select.setCurrentText(curr_font)
         font_row_layout.addWidget(font_select)
         font_select.currentIndexChanged.connect(self.font_select_on_change)
         self.font_select = font_select
-        
+
         self.story_font.setFamily(curr_font)
 
         if curr_font in QFontDatabase.families():
             self.text_view.setFont(self.story_font)
         else:
-            # The font from the config was not found. 
+            # The font from the config was not found.
             # Reset config back to empty string, and show error
-            showInfo(f"An error occured loading the font '{curr_font}' from config, falling back to Anki default.")
+            showInfo(
+                f"An error occured loading the font '{curr_font}' from config, falling back to Anki default.")
             config['story_font_family'] = ''
             save_config(config)
 
-        
         # Copy to clipboard button
         copy_button: QPushButton = QPushButton()
         copy_button.setText("Copy to clipboard")
@@ -100,7 +99,8 @@ class StoryView(QWidget):
         for (change, icon) in [(-1, QIcon.ThemeIcon.ListRemove), (1, QIcon.ThemeIcon.ListAdd)]:
             font_size_button: QPushButton = QPushButton()
             font_size_button.setIcon(QIcon.fromTheme(icon))
-            font_size_button.clicked.connect(self.font_size_on_click_factory(change))
+            font_size_button.clicked.connect(
+                self.font_size_on_click_factory(change))
             font_row_layout.addWidget(font_size_button)
 
         # Layout
@@ -131,10 +131,10 @@ class StoryView(QWidget):
 
     def closeEvent(self, a0: QCloseEvent | None):
         config: Config = get_config()
-        
+
         if config['story_font_size_idx'] != self.font_size_idx:
             # Update the font size so that it may persist
-            config['story_font_size_idx'] = self.font_size_idx 
+            config['story_font_size_idx'] = self.font_size_idx
             save_config(config)
 
         if a0:
@@ -149,13 +149,12 @@ class StoryView(QWidget):
             if new_font_size_idx >= len(self.font_sizes):
                 new_font_size_idx = len(self.font_sizes) - 1
 
-
-            self.font_size_idx = new_font_size_idx 
+            self.font_size_idx = new_font_size_idx
             self.story_font.setPointSize(self.font_sizes[self.font_size_idx])
 
             self.text_view.setFont(self.story_font)
         return font_size_on_click
-            
+
     def font_select_on_change(self):
         curr_font: str = self.font_select.currentText()
         self.story_font.setFamily(curr_font)
@@ -164,7 +163,6 @@ class StoryView(QWidget):
         if config['story_font_family'] != curr_font:
             config['story_font_family'] = curr_font
             save_config(config)
-
 
 
 class NoteTypeForm(QDialog):
@@ -259,7 +257,8 @@ class PresetFieldRow(QObject):
         self.save_button.hide()
         self.reset_button.hide()
 
-        self.value_field.textChanged.connect(lambda: self.value_field_on_change())
+        self.value_field.textChanged.connect(
+            lambda: self.value_field_on_change())
 
         self.set_value_field: Callable = (
             QPlainTextEdit.setPlainText if text_area else QLineEdit.setText
@@ -273,7 +272,8 @@ class PresetFieldRow(QObject):
         )
 
         for preset in presets:
-            self.preset_select.addItem(preset["name"], userData=preset["value"])
+            self.preset_select.addItem(
+                preset["name"], userData=preset["value"])
 
     def select_on_change(self, idx: int) -> None:
         new_value: str = self.preset_select.itemData(idx)
@@ -330,7 +330,7 @@ class Config(TypedDict):
     # This is a mapping of note types to a given field index
     # in order to determine what field to pull the vocab from.
     note_type_field: Dict[str, int]
-    
+
 
 def save_config(config: Config):
     mw.addonManager.writeConfig(__name__, cast(Dict, config))
@@ -376,7 +376,7 @@ class PromptForm(QDialog):
         self.preset_rows["prompt"].preset_update.connect(
             lambda preset: self.on_preset_update("prompt_presets", preset)
         )
-        
+
         self.preset_rows["lang"].preset_update.connect(
             lambda preset: self.on_preset_update("lang_presets", preset)
         )
@@ -392,7 +392,8 @@ class PromptForm(QDialog):
         run_button_row = QHBoxLayout()
 
         layout.addRow(QLabel("Theme"), self.preset_rows["theme"].row)
-        layout.addRow(QLabel("Collection Query"), self.preset_rows["vocab_query"].row)
+        layout.addRow(QLabel("Collection Query"),
+                      self.preset_rows["vocab_query"].row)
         layout.addRow(QLabel("Language"), self.preset_rows["lang"].row)
         layout.addRow(QLabel("Prompt"), self.preset_rows["prompt"].row)
         run_button_row.addWidget(self.button)
@@ -410,13 +411,14 @@ class PromptForm(QDialog):
 
         if self.previous_stories:
             self.previous_stories_button = QPushButton("Previous Stories")
-            self.previous_stories_button.clicked.connect(self.show_previous_stories)
+            self.previous_stories_button.clicked.connect(
+                self.show_previous_stories)
             layout.addRow(self.previous_stories_button)
         self.setLayout(layout)
         self.resize(1200, 800)
 
     def show_previous_stories(self):
-        story_view: StoryView = StoryView(self.previous_stories, 
+        story_view: StoryView = StoryView(self.previous_stories,
                                           font_size_idx=self.config['story_font_size_idx'])
         setattr(mw, "anki_storytime__previous_story_view", story_view)
         story_view.show()
@@ -477,7 +479,8 @@ class PromptForm(QDialog):
                     notes_without_known_index[note_type_name] = note
 
         if len(notes_without_known_index) > 0:
-            note_type_form: NoteTypeForm = NoteTypeForm(notes_without_known_index)
+            note_type_form: NoteTypeForm = NoteTypeForm(
+                notes_without_known_index)
             setattr(mw, "anki_storytime__note_type_window", note_type_form)
             note_type_form.show()
             return None
@@ -497,7 +500,8 @@ class PromptForm(QDialog):
         lang: str = self.preset_rows["lang"].get_value()
         op = QueryOp(
             parent=mw,
-            op=lambda _: prepare_story(vocab, theme, prompt, lang, copy_to_clipboard),
+            op=lambda _: prepare_story(
+                vocab, theme, prompt, lang, copy_to_clipboard),
             success=lambda response: prepare_story_on_success(
                 response, deck_name=selected_deck_name
             ),
@@ -512,6 +516,7 @@ def main():
     validate_config()
     aqt.gui_hooks.overview_will_render_bottom.append(add_ai_button)
     return
+
 
 def validate_config() -> None:
     config: Dict = mw.addonManager.getConfig(__name__) or {}
@@ -562,8 +567,9 @@ def prepare_story_on_success(
         # Pop the first story off, which is the oldest.
         previous_stories[name].pop(0)
     save_config(config)
-    
-    story_view: StoryView = StoryView(previous_stories[name], font_size_idx=config['story_font_size_idx'])
+
+    story_view: StoryView = StoryView(
+        previous_stories[name], font_size_idx=config['story_font_size_idx'])
     setattr(mw, "anki_storytime__story_view", story_view)
     story_view.show()
 
@@ -581,11 +587,13 @@ def prepare_story(
             )
             if len(response) > 1000:
                 response = (
-                    response[0:1000] + f"... ({len(response) - 1000} characters omitted"
+                    response[0:1000] +
+                    f"... ({len(response) - 1000} characters omitted"
                 )
             return response
         api_key = config.get("openai_api_key", "")
-        filled_prompt: str = prompt.format(vocab="\n".join(vocab), theme=theme, lang=lang)
+        filled_prompt: str = prompt.format(
+            vocab="\n".join(vocab), theme=theme, lang=lang)
         if api_key and not copy_to_clipboard:
             return get_openai_response(filled_prompt, config["openai_model"], api_key)
         elif copy_to_clipboard:
@@ -612,7 +620,8 @@ def get_openai_response(prompt: str, model: str, token: str):
         "Content-Type": "application/json",
         "Authorization": f"Bearer {token}",
     }
-    request_body: bytes = json.dumps(dict(model=model, input=prompt)).encode("utf-8")
+    request_body: bytes = json.dumps(
+        dict(model=model, input=prompt)).encode("utf-8")
     req: urllib.request.Request = urllib.request.Request(
         OPENAI_RESPONSE_URL, headers=headers, method="POST", data=request_body
     )
