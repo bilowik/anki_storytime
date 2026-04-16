@@ -1,3 +1,6 @@
+# 1.0.1
+ - Fix `lang` variable not being provided to template.
+
 # 1.0.0
  - Remove `custom_` preset config fields
     - These did not work out the way I thought they would. I thought meta.json would only contain _modified_ config fields rather than the entire config after a modification. It makes this preset split pretty pointless. 
